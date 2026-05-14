@@ -1,9 +1,15 @@
+<<<<<<< HEAD
 # Environment Variables
 .env
 .env.local
 .env.production
 
 # Python
+=======
+# ============================
+# Python Core
+# ============================
+>>>>>>> fcca0d7 (add auth and did service.(backend logic only))
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,10 +27,15 @@ parts/
 sdist/
 var/
 wheels/
+<<<<<<< HEAD
+=======
+share/python-wheels/
+>>>>>>> fcca0d7 (add auth and did service.(backend logic only))
 *.egg-info/
 .installed.cfg
 *.egg
 
+<<<<<<< HEAD
 # Virtual Environment
 venv/
 env/
@@ -33,12 +44,67 @@ ENV/
 .env/
 
 # IDE
+=======
+# ============================
+# Virtual Environments
+# ============================
+venv/
+.venv/
+env/
+.env_venv/
+ENV/
+
+
+# ============================
+# Environment Variables
+# ============================
+# Never commit actual .env files containing secrets!
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# ============================
+# Databases & Alembic
+# ============================
+# Ignore local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Note: 'alembic.ini' is usually committed to the repository. 
+# Do not hardcode database URLs in it; use environment variables instead.
+
+# ============================
+# Testing & Coverage
+# ============================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ============================
+# Logs
+# ============================
+*.log
+logs/
+
+# ============================
+# IDEs and Editors
+# ============================
+>>>>>>> fcca0d7 (add auth and did service.(backend logic only))
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+<<<<<<< HEAD
 # Database
 *.db
 *.sqlite3
@@ -62,3 +128,15 @@ Thumbs.db
 *.pid
 instance/
 .webassets-cache
+=======
+# ============================
+# OS Specific
+# ============================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+>>>>>>> fcca0d7 (add auth and did service.(backend logic only))

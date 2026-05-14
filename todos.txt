@@ -1,0 +1,5 @@
+1. run auth service and did service separatly to test rabbitmq
+2. start implementing vc
+
+
+الان واسه ارتباط سرویس auth و did از rabbitmq استفاده کردم. الان اگه دوتاش رو جداگانه روی دوتا پورت جدا اجرا کنم بازم با هم ارتباط میگیرن دیگه درسته؟ و اینکه از کجا بفهمم الان rabbitmq بالاست؟ همچنین چجوری لاگ هایی که با استفاده از کد پایتون میندازم رو ببینم؟
