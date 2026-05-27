@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from .models import User
+from sqlalchemy import text
+from .models import User, wallet_index_seq
 
 
 def get_user_by_username(db: Session, username: str):
@@ -22,3 +23,7 @@ def create_user(db: Session, username: str, password_hash: str, email: str | Non
     db.refresh(user)
 
     return user
+
+def get_next_wallet_index(db: Session) -> int:
+    result = db.execute(wallet_index_seq)
+    return result.scalar_one()

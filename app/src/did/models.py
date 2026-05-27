@@ -1,7 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
-
-from sqlalchemy import Column, Integer, String, JSON, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from app.src.database import Base
 # from app.src.auth.models import User
@@ -11,7 +9,7 @@ class Did(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, nullable=False)  # users.id
 
     did = Column(String, unique=True, index=True, nullable=False) 
     ethereum_address = Column(String, nullable=False)
@@ -27,5 +25,4 @@ class Did(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    user = relationship("User", back_populates="did", uselist=False)
     

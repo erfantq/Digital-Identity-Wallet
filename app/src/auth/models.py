@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Sequence
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.src.database import Base
-# from app.src.did.models import Did
+
+wallet_index_seq = Sequence("wallet_index_seq", start=1, increment=1)
 
 class User(Base):
     __tablename__ = "users"
@@ -14,4 +14,11 @@ class User(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    did = relationship("Did", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    wallet_index = Column(
+        Integer,
+        wallet_index_seq,
+        unique=True,
+        nullable=False,
+    )
+
+    eth_address = Column(String(42), unique=True, nullable=False)

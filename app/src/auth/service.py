@@ -1,12 +1,13 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-
 from .security import hash_password, verify_password, create_access_token
 from .repository import (
     get_user_by_username,
     get_user_by_email,
-    create_user
+    create_user,
+    get_next_wallet_index
 )
+from .hd_wallet import derive_wallet_from_index
 from app.src.messaging import event_bus
 from app.src.response import success_response, error_response
 from app.src.blockchain.ethereum import generate_ethereum_account
@@ -34,16 +35,19 @@ async def register_user(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already exists"
             )
+        
+    wallet_index = get_next_wallet_index(db)
+
+    wallet = derive_wallet_from_index(wallet_index)
 
     user = create_user(
         db=db,
         username=username,
         email=email,
-        password_hash=hash_password(password)
+        password_hash=hash_password(password),
+        wallet_index=wallet.wallet_index,
+        eth_address=wallet.address,
     )
-
-    # Create Ethereum account for DID
-    eth_account = generate_ethereum_account()
 
     await event_bus.publish(
         "user.created",
@@ -51,7 +55,7 @@ async def register_user(
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
-            "eth_address": eth_account["address"]
+            "eth_address": wallet.address
         }
     )
 
@@ -60,7 +64,7 @@ async def register_user(
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
-            "eth_address": eth_account["address"]
+            "eth_address": user.eth_address
         },
         message="User registered successfully. DID creation started."   
     )

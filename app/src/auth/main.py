@@ -5,6 +5,7 @@ from app.src.auth.router import router as auth_router
 from app.src.messaging import event_bus
 from app.src.exceptions import http_exception_handler, general_exception_handler
 from fastapi.exceptions import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from app.src import models
 import logging
 import sys
@@ -25,11 +26,17 @@ async def lifespan(app: FastAPI):
     await event_bus.close()
 
 
-
-
 app = FastAPI(
     title="Auth Service",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth_router)
