@@ -5,7 +5,7 @@ from .schemas import CredentialIssue
 from .dependencies import get_db
 from .models import Credential
 from app.src.did.repository import check_did_exists
-from app.src.response import success_response, error_response
+from .response import success_response, error_response
 import uuid
 import json
 import logging
@@ -23,9 +23,11 @@ router = APIRouter(
     tags=["credentials"]
 )
 
-# TODO add role middleware
 @router.post("/issue", tags=["credentials"])
-async def issue_credential(cred: CredentialIssue, db: Session = Depends(get_db)):
+async def issue_credential(
+    cred: CredentialIssue,
+    db: Session = Depends(get_db),
+):
     logger.info(f"Issuing credential for DID: {cred.holder_did}")
     try:
         did_exists = check_did_exists(did=cred.holder_did, db=db)

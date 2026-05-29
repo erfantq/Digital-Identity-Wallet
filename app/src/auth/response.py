@@ -7,8 +7,8 @@ def success_response(data=None, message="Success", status_code=200):
         content={
             "status": True,
             "message": message,
-            "data": data
-        }
+            "data": data,
+        },
     )
 
 
@@ -18,6 +18,6 @@ def error_response(message="Error", status_code=400, data=None):
         content={
             "status": False,
             "message": message,
-            "data": data
-        }
+            "data": data,
+        },
     )

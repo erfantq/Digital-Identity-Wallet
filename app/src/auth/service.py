@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Depends
 from .security import hash_password, verify_password, create_access_token
 from .repository import (
     get_user_by_username,
@@ -9,15 +9,15 @@ from .repository import (
 )
 from .hd_wallet import derive_wallet_from_index
 from app.src.messaging import event_bus
-from app.src.response import success_response, error_response
-from app.src.blockchain.ethereum import generate_ethereum_account
-
+from .response import success_response, error_response
+from .enums import UserRoleEnum
 
 async def register_user(
     db: Session,
     username: str,
     password: str,
-    email: str | None = None
+    email: str | None = None,
+    role: UserRoleEnum = UserRoleEnum.USER,
 ):
     existing_username = get_user_by_username(db, username)
 
@@ -47,6 +47,7 @@ async def register_user(
         password_hash=hash_password(password),
         wallet_index=wallet.wallet_index,
         eth_address=wallet.address,
+        role=role
     )
 
     await event_bus.publish(
@@ -55,7 +56,8 @@ async def register_user(
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
-            "eth_address": wallet.address
+            "eth_address": wallet.address,
+            "role": user.role
         }
     )
 
@@ -64,7 +66,8 @@ async def register_user(
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
-            "eth_address": user.eth_address
+            "eth_address": user.eth_address,
+            "role": user.role
         },
         message="User registered successfully. DID creation started."   
     )
