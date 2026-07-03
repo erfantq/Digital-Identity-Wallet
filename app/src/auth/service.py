@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, Depends
+from sqlalchemy.orm import Session
 from .security import hash_password, verify_password, create_access_token
 from .repository import (
     get_user_by_username,
@@ -7,9 +7,10 @@ from .repository import (
     create_user,
     get_next_wallet_index
 )
-from .hd_wallet import derive_wallet_from_index
-from app.src.messaging import event_bus
-from .response import success_response, error_response
+from app.src.blockchain.hdWallet import derive_wallet_from_index
+from app.src.common.messaging import event_bus
+from app.src.common.response import success_response, error_response
+from web3 import Web3
 from .enums import UserRoleEnum
 
 async def register_user(
@@ -39,6 +40,9 @@ async def register_user(
     wallet_index = get_next_wallet_index(db)
 
     wallet = derive_wallet_from_index(wallet_index)
+    
+    # eth_address = Web3.to_checksum_address(wallet.address)
+    eth_address = wallet.address
 
     user = create_user(
         db=db,
@@ -46,7 +50,7 @@ async def register_user(
         email=email,
         password_hash=hash_password(password),
         wallet_index=wallet.wallet_index,
-        eth_address=wallet.address,
+        eth_address=eth_address,
         role=role
     )
 
@@ -57,7 +61,7 @@ async def register_user(
             "username": user.username,
             "email": user.email,
             "eth_address": wallet.address,
-            "role": user.role
+            "role": user.role.value if hasattr(user.role, "value") else user.role
         }
     )
 
@@ -67,7 +71,7 @@ async def register_user(
             "username": user.username,
             "email": user.email,
             "eth_address": user.eth_address,
-            "role": user.role
+            "role": user.role.value if hasattr(user.role, "value") else user.role
         },
         message="User registered successfully. DID creation started."   
     )
@@ -90,13 +94,13 @@ def login_user(db: Session, username: str, password: str):
 
     token = create_access_token({
         "sub": user.username,
-        "user_id": user.id
+        "user_id": user.id,
+        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "wallet_index": user.wallet_index,
+        "eth_address": user.eth_address,
     })
 
-    return success_response(
-        data={
-            "access_token": token,
-            "token_type": "bearer"
-        },
-        message="Login successful"
-    )
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }

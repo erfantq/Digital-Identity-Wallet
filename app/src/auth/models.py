@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Sequence, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Sequence, Enum as SqlEnum
 from sqlalchemy.sql import func
-from app.src.database import Base
+from app.src.common.database import Base
 from .enums import UserRoleEnum
 
 wallet_index_seq = Sequence("wallet_index_seq", start=1, increment=1)
@@ -26,10 +26,12 @@ class User(Base):
     eth_address = Column(String(42), unique=True, nullable=False)
 
     role = Column(
-        Enum(
+        SqlEnum(
             UserRoleEnum,
+            name="user_role_enum",
             values_callable=lambda enum_class: [item.value for item in enum_class],
         ),
         nullable=False,
         default=UserRoleEnum.USER,
+        server_default=UserRoleEnum.USER.value,
     )

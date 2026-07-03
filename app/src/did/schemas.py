@@ -11,27 +11,28 @@ class DIDMethod(str, Enum):
     ION = "ion"
 
 class DIDCreate(BaseModel):
-    method: DIDMethod = Field(..., description="DID method (key, web, ethr, sov, ion)")
-    identifier: str = Field(..., min_length=1, max_length=256)
+    # method: DIDMethod = Field(..., description="DID method (key, web, ethr, sov, ion)")
+    # identifier: str = Field(..., min_length=1, max_length=256)
+    user_id: int
     controller: Optional[str] = Field(None, description="The controller of the DID")
     
-    @field_validator('identifier')
-    @classmethod
-    def validate_identifier(cls, v, info):
-        method = info.data.get('method') if info.data else None
-        if method == DIDMethod.KEY:
-            # Base58 encoded for key method
-            if not re.match(r'^[1-9A-HJ-NP-Za-km-z]+$', v):
-                raise ValueError("Key identifier must be valid Base58 format")
-        elif method == DIDMethod.WEB:
-            # Valid domain name for web method
-            if not re.match(r'^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$', v):
-                raise ValueError("Web identifier must be a valid domain name")
-        elif method == DIDMethod.ETHR:
-            # Ethereum address for ethr method
-            if not re.match(r'^0x[0-9a-fA-F]{40}$', v):
-                raise ValueError("Ethereum identifier must be a valid Ethereum address")
-        return v
+    # @field_validator('identifier')
+    # @classmethod
+    # def validate_identifier(cls, v, info):
+    #     method = info.data.get('method') if info.data else None
+    #     if method == DIDMethod.KEY:
+    #         # Base58 encoded for key method
+    #         if not re.match(r'^[1-9A-HJ-NP-Za-km-z]+$', v):
+    #             raise ValueError("Key identifier must be valid Base58 format")
+    #     elif method == DIDMethod.WEB:
+    #         # Valid domain name for web method
+    #         if not re.match(r'^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$', v):
+    #             raise ValueError("Web identifier must be a valid domain name")
+    #     elif method == DIDMethod.ETHR:
+    #         # Ethereum address for ethr method
+    #         if not re.match(r'^0x[0-9a-fA-F]{40}$', v):
+    #             raise ValueError("Ethereum identifier must be a valid Ethereum address")
+    #     return v
 
 class VerificationMethod(BaseModel):
     id: str

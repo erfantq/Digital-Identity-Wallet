@@ -1,18 +1,50 @@
-from sqlalchemy import Column, Integer, String, JSON
-from app.src.database import Base
-
+from sqlalchemy import Column, Integer, String, JSON, Enum, DateTime
+from sqlalchemy.sql import func
+from app.src.common.database import Base
+from .enums import CredentialStatus
 
 class Credential(Base):
     __tablename__="credentials"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    credential_id = Column(Integer, unique=True, index=True, nullable=False)
-    
-    issuer = Column(String, default="system")
+    # Example: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+    credential_id = Column(String(255), unique=True, index=True, nullable=False)
 
-    holder_did = Column(Integer, nullable=False) # dids.did 
+    # Example: did:ethr:0x...
+    issuer = Column(String(255), nullable=False)
+
+    # Example: did:ethr:0x...
+    holder_did = Column(String(255), nullable=False, index=True) 
 
     type = Column(String, default="VerifiableCredential")
 
     credential = Column(JSON, nullable=False)
+
+    status = Column(
+        Enum(
+            CredentialStatus,
+            values_callable=lambda enum_class: [item.value for item in enum_class],
+        ),
+        nullable=False,
+        default=CredentialStatus.ACTIVE,
+    )
+    
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(Integer, nullable=True, index=True)
+    revoke_reason = Column(String(500), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    
+    
+# class KnownDid(Base):
+#     __tablename__ = "known_dids"
+
+#     did = Column(String, unique=True, index=True, nullable=False)

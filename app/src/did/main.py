@@ -3,12 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from contextlib import asynccontextmanager
-from app.src.messaging import event_bus
-from app.src.exceptions import http_exception_handler, general_exception_handler
+from app.src.common.messaging import event_bus
+from app.src.common.exceptions import http_exception_handler, general_exception_handler
 from prometheus_fastapi_instrumentator import Instrumentator
 from .router import router as did_router
 from .events import handle_user_created
-from app.src import models
 import os
 import logging
 import sys

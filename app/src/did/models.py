@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from app.src.database import Base
+from app.src.common.database import Base
 # from app.src.auth.models import User
 
 class Did(Base):

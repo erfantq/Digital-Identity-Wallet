@@ -2,6 +2,9 @@ from datetime import datetime, timedelta, timezone
 import os
 from passlib.context import CryptContext
 from jose import jwt
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM")

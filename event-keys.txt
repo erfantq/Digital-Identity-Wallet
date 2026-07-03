@@ -1,0 +1,4 @@
+user.created
+did.created
+cred.created
+cred.revoked

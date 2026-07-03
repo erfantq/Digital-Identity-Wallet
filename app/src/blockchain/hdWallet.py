@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from web3 import Web3
 
 from bip_utils import (
     Bip39SeedGenerator,
@@ -54,7 +55,7 @@ def derive_wallet_from_index(wallet_index: int) -> DerivedWallet:
 
     private_key = "0x" + address_ctx.PrivateKey().Raw().ToHex()
     public_key = "0x" + address_ctx.PublicKey().RawCompressed().ToHex()
-    address = address_ctx.PublicKey().ToAddress()
+    address = Web3.to_checksum_address(address_ctx.PublicKey().ToAddress())
 
     derivation_path = f"m/44'/60'/0'/0/{wallet_index}"
 

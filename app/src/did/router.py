@@ -5,8 +5,12 @@ from .schemas import (
     DIDResolutionMetadata, DIDDocumentMetadata
 )
 from .models import Did
-from .service import create_did_service
-from app.src.messaging import event_bus
+from .service import (
+    create_did_service,
+    resolve_did_service
+)
+from app.src.common.messaging import event_bus
+from app.src.common.auth_dependencies import require_admin
 from .telemetry import create_span, extract_context_from_request, add_span_attributes, mark_span_error
 from datetime import datetime, timezone
 import logging
@@ -25,12 +29,13 @@ router = APIRouter(
     tags=["dids"]   
 )
 
-@router.post("/dids", response_model=DIDDocument, tags=["dids"])
+@router.post("/", response_model=DIDDocument, tags=["dids"])
 async def create_did(
     did: DIDCreate,
     background_tasks: BackgroundTasks,
     request: Request,
-    db=Depends(get_db)
+    db=Depends(get_db),
+    admin_user = Depends(require_admin),
 ):
     """
     Create a new Decentralized Identifier (DID)
@@ -47,15 +52,16 @@ async def create_did(
         "create_did",
         context=context,
         attributes={
-            "method": did.method,
-            "identifier": did.identifier
+            "method": DIDMethod.ETHR.value,
         }
     ) as span:
 
-        logger.info(f"Creating DID with method: {did.method}")
+        logger.info(f"Creating DID with method: {DIDMethod.ETHR.value}")
 
         try:
-            await create_did_service(did=did, background_tasks=background_tasks,db=db)
+            did_document = await create_did_service(did=did, db=db, background_tasks=background_tasks)
+            
+            return did_document
 
         except HTTPException as he:
             mark_span_error(he)
@@ -75,76 +81,61 @@ async def create_did(
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(e)
+            )       
+     
+        
+@router.get("/{did}", response_model=DIDResolution, tags=["dids"])
+async def resolve_did(
+    did: str,
+    request: Request,
+    db=Depends(get_db)
+):
+    """
+    Resolve a DID to its DID document
+
+    - **did**: The full DID to resolve, for example: did:ethr:0x1234...
+
+    Returns a DID Resolution object conforming to the W3C DID spec.
+    """
+
+    context = extract_context_from_request(request)
+
+    with create_span(
+        "resolve_did",
+        context=context,
+        attributes={"did": did}
+    ) as span:
+
+        logger.info(f"Resolving DID: {did}")
+
+        try:
+            resolution = resolve_did_service(
+                did=did,
+                db=db
             )
 
-# @router.get("/dids/{did}", response_model=DIDResolution, tags=["dids"])
-# async def resolve_did(did: str, request: Request, db=Depends(get_db)):
-#     """
-#     Resolve a DID to its DID document
-    
-#     - **did**: The full DID to resolve (e.g., 'did:ethr:0x1234...')
-    
-#     Returns a DID Resolution object conforming to the W3C DID spec.
-#     """
-#     # Create a tracing span
-#     context = extract_context_from_request(request)
-#     with create_span("resolve_did", context=context, attributes={"did": did}) as span:
-#         logger.info(f"Resolving DID: {did}")
-#         try:
-#             async with pool.acquire() as conn:
-#                 # Find DID in database
-#                 result = await conn.fetchrow(
-#                     "SELECT document, created_at, updated_at FROM dids WHERE did = $1", did
-#                 )
-                
-#                 if not result:
-#                     logger.warning(f"DID not found: {did}")
-#                     error_msg = "DID not found"
-                    
-#                     resolution_metadata = DIDResolutionMetadata(
-#                         contentType="application/did+json",
-#                         retrieved=datetime.now(timezone.utc).isoformat() + "Z",
-#                         error=error_msg
-#                     )
-                    
-#                     return DIDResolution(
-#                         didResolutionMetadata=resolution_metadata,
-#                         didDocument=DIDDocument(id=did),
-#                         didDocumentMetadata=DIDDocumentMetadata()
-#                     )
-                
-#                 # Parse document from database
-#                 document = json.loads(result["document"])
-                
-#                 # Convert to DID document
-#                 did_document = DIDDocument(**document)
-                
-#                 # Create resolution metadata
-#                 resolution_metadata = DIDResolutionMetadata(
-#                     contentType="application/did+json",
-#                     retrieved=datetime.now(timezone.utc).isoformat() + "Z"
-#                 )
-                
-#                 # Create document metadata
-#                 document_metadata = DIDDocumentMetadata(
-#                     created=result["created_at"].isoformat() + "Z" if result["created_at"] else None,
-#                     updated=result["updated_at"].isoformat() + "Z" if result["updated_at"] else None
-#                 )
-                
-#                 # Add span attributes
-#                 add_span_attributes({"found": True})
-                
-#                 # Return full resolution
-#                 return DIDResolution(
-#                     didResolutionMetadata=resolution_metadata,
-#                     didDocument=did_document,
-#                     didDocumentMetadata=document_metadata
-#                 )
-                
-#         except Exception as e:
-#             logger.error(f"Error resolving DID: {str(e)}")
-#             mark_span_error(e)
-#             raise HTTPException(status_code=500, detail=f"Error resolving DID: {str(e)}")
+            found = resolution.didResolutionMetadata.error is None
+
+            add_span_attributes({
+                "found": found
+            })
+
+            if not found:
+                logger.warning(f"DID not found: {did}")
+
+            return resolution
+
+        except HTTPException as he:
+            mark_span_error(he)
+            raise
+
+        except Exception as e:
+            logger.error(f"Error resolving DID: {str(e)}")
+            mark_span_error(e)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error resolving DID: {str(e)}"
+            )
 
 # @router.get("/health", tags=["health"])
 # async def health_check():

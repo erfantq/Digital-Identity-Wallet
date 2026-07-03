@@ -1,4 +1,4 @@
-from app.src.database import Base, create_session_factory, create_get_db
+from app.src.common.database import Base, create_session_factory, create_get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -19,7 +19,7 @@ get_db = create_get_db(SessionLocal)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def get_current_user(
+def get_current_user_from_db(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
@@ -47,8 +47,8 @@ def get_current_user(
     return user
 
 
-def require_admin(
-    current_user: User = Depends(get_current_user),
+def require_admin_from_db(
+    current_user: User = Depends(get_current_user_from_db),
 ):
     if current_user.role != UserRoleEnum.ADMIN:
         raise HTTPException(
@@ -57,3 +57,7 @@ def require_admin(
         )
 
     return current_user
+
+
+get_current_user = get_current_user_from_db
+require_admin = require_admin_from_db

@@ -18,3 +18,4 @@ def generate_ethereum_account() -> dict:
         "private_key": account.key.hex()
     }
 
+

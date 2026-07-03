@@ -1,3 +1,7 @@
+from .repository import (
+    check_did_exists,
+    check_user_did_exists,
+)
 from fastapi import Depends, HTTPException, status, BackgroundTasks
 from .schemas import (
     DIDCreate, DIDDocument, DIDResolution, DIDMethod,
@@ -6,7 +10,11 @@ from .schemas import (
 from .models import Did
 from datetime import datetime, timezone
 from .dependencies import get_db, SessionLocal
-from app.src.messaging import event_bus
+from app.src.common.messaging import event_bus
+from app.src.auth.repository import (
+    get_user_by_id
+)
+from app.src.blockchain.hdWallet import derive_wallet_from_index
 from .telemetry import add_span_attributes
 from web3 import Web3
 from sqlalchemy.orm import Session
@@ -105,97 +113,191 @@ def generate_did_document(did: str, method: DIDMethod, controller: str = None):
 
 async def create_did_service(
     did: DIDCreate,
-    background_tasks: BackgroundTasks,
     db: Session,
+    background_tasks: BackgroundTasks | None = None,
 ):
-    if did.method == DIDMethod.ETHR:
-
-        # فعلاً فرض می‌کنیم identifier همان Ethereum address است
-        # در نسخه واقعی بهتر است address از private key / Vault ساخته شود
-        # TODO
-        ethereum_address = Web3.to_checksum_address(did.identifier)
-
-        did_id = f"did:ethr:{ethereum_address}"
-
-        existing = db.query(Did).filter(Did.did == did_id).first()
-        # existing = await conn.fetchrow(
-        #     "SELECT did FROM dids WHERE did = $1",
-        #     did_id
-        # )
-
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="DID already exists"
-            )
-
-        # create Did
-        resolution = generate_did_document(
-            did=did_id,
-            method=did.method,
-            controller=did.controller
+    """
+        Create a Did with ETHR method
+    """
+    target_user = get_user_by_id(db, did.user_id)
+    
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target user not found"
         )
 
-        did_document = resolution.didDocument
-
-        document_json = json.dumps(
-            did_document.model_dump(by_alias=True),
-            sort_keys=True
+    if target_user.wallet_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target user does not have wallet_index"
+        )
+        
+    # Derive Ethereum wallet from user's wallet_index
+    try:
+        wallet = derive_wallet_from_index(target_user.wallet_index)
+    except Exception as e:
+        logger.error(f"Failed to derive wallet for user {target_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to derive wallet for target user"
         )
 
-        # Document hash to store in blockchain
-        document_hash = Web3.keccak(text=document_json).hex()
+    # ethereum_address = Web3.to_checksum_address(wallet.address)
+    ethereum_address = wallet.address
 
-        # Endpoint address for resolve method
-        service_endpoint = f"/dids/{did_id}"
+    # TODO add chain id (besu)
+    did_id = f"did:ethr:{target_user.id}:{ethereum_address}"
 
-        # ثبت روی بلاکچین
-        # فرض: این تابع به smart contract وصل می‌شود
-        # TODO implement functionality
-        chain_result = await register_did_on_chain(
-            identity_address=ethereum_address,
-            document_hash=document_hash,
-            service_endpoint=service_endpoint
+    existing = check_did_exists(db=db, did=did_id)
+    # existing = await conn.fetchrow(
+    #     "SELECT did FROM dids WHERE did = $1",
+    #     did_id
+    # )
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="DID already exists"
+        )
+        
+    existing_user_did = check_user_did_exists(db=db, user_id=did.user_id)
+
+    if existing_user_did:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This user already has a DID"
         )
 
-        tx_hash = chain_result.get("tx_hash")
-        block_number = chain_result.get("block_number")
+    # create Did
+    resolution = generate_did_document(
+        did=did_id,
+        method=DIDMethod.ETHR.value,
+        controller=did.controller
+    )
 
-        # Save in database as a cache reference
-        new_did = Did(
-            did=did_id,
-            document=document_json,
-            ethereum_address=ethereum_address,
-            document_hash=document_hash,
-            tx_hash=tx_hash,
-            block_number=block_number
-        )
+    did_document = resolution.didDocument
 
-        db.add(new_did)
-        db.commit()
-        db.refresh(new_did)
+    document_json = json.dumps(
+        did_document.model_dump(by_alias=True),
+        sort_keys=True
+    )
 
-        logger.info(f"Successfully created ETHR DID on-chain: {did_id}")
+    # Document hash to store in blockchain
+    document_hash = Web3.keccak(text=document_json).hex()
 
+    # Endpoint address for resolve method
+    service_endpoint = f"/dids/{did_id}"
+
+    # ثبت روی بلاکچین
+    # فرض: این تابع به smart contract وصل می‌شود
+    # TODO implement functionality - Also should be handled by events (did.created)
+    # chain_result = await register_did_on_chain(
+    #     identity_address=ethereum_address,
+    #     document_hash=document_hash,
+    #     service_endpoint=service_endpoint
+    # )
+
+    # tx_hash = chain_result.get("tx_hash")
+    # block_number = chain_result.get("block_number")
+
+    # Save in database as a cache reference
+    new_did = Did(
+        user_id=target_user.id,
+        did=did_id,
+        document=document_json,
+        ethereum_address=ethereum_address,
+        document_hash=document_hash,
+        tx_hash=None,
+        block_number=None,
+    )
+
+    db.add(new_did)
+    db.commit()
+    db.refresh(new_did)
+
+    logger.info(f"Successfully created ETHR DID on-chain: {did_id}")
+
+    event_payload = {
+            "user_id": target_user.id,
+            "did": did_id,
+            "method": "ethr",
+            "ethereum_address": ethereum_address,
+            "tx_hash": None,
+            "block_number": None
+        }
+    # TODO use this event for submit in blockchain
+    if background_tasks is not None:
         background_tasks.add_task(
             event_bus.publish,
             "did.created",
-            {
-                "did": did_id,
-                "method": "ethr",
-                "ethereum_address": ethereum_address,
-                "tx_hash": tx_hash,
-                "block_number": block_number
-            }
+            event_payload
+        )
+    else:
+        await event_bus.publish(
+            "did.created",
+            event_payload
         )
 
-        add_span_attributes({
-            "did_id": did_id,
-            "ethereum_address": ethereum_address,
-            "tx_hash": tx_hash
-        })
 
-        return did_document
+    add_span_attributes({
+        "target_user_id": target_user.id,
+        "did_id": did_id,
+        "ethereum_address": ethereum_address,
+        "tx_hash": None
+    })
 
-        
+    return did_document
 
+
+## TODO check with blockchain for consitency
+def resolve_did_service(
+    did: str,
+    db: Session,
+) -> DIDResolution:
+    # Find DID in database using ORM
+    did_record = db.query(Did).filter(Did.did == did).first()
+
+    if not did_record:
+        resolution_metadata = DIDResolutionMetadata(
+            contentType="application/did+json",
+            retrieved=datetime.now(timezone.utc).isoformat(),
+            error="DID not found"
+        )
+
+        return DIDResolution(
+            didResolutionMetadata=resolution_metadata,
+            didDocument=DIDDocument(id=did),
+            didDocumentMetadata=DIDDocumentMetadata()
+        )
+
+    # Parse stored DID document
+    try:
+        if isinstance(did_record.document, str):
+            document_data = json.loads(did_record.document)
+        else:
+            document_data = did_record.document
+
+        did_document = DIDDocument(**document_data)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Invalid DID document stored in database: {str(e)}"
+        )
+
+    resolution_metadata = DIDResolutionMetadata(
+        contentType="application/did+json",
+        retrieved=datetime.now(timezone.utc).isoformat()
+    )
+
+    document_metadata = DIDDocumentMetadata(
+        created=did_record.created_at.isoformat() if did_record.created_at else None,
+        updated=did_record.updated_at.isoformat() if did_record.updated_at else None
+    )
+
+    return DIDResolution(
+        didResolutionMetadata=resolution_metadata,
+        didDocument=did_document,
+        didDocumentMetadata=document_metadata
+    )

@@ -1,4 +1,4 @@
-from app.src.database import Base, create_session_factory, create_get_db
+from app.src.common.database import Base, create_session_factory, create_get_db
 from dotenv import load_dotenv
 import os
 
