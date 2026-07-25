@@ -1,0 +1,9 @@
+{
+  "contract": "TrustedEntityRegistry",
+  "address": "0xeB35B7bA819DAD84E60752c357d45e5ce41D85c5",
+  "admin": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "deployer": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "chainId": 1337,
+  "deployedAt": "2026-07-25T17:54:24.275Z",
+  "txHash": "0x74b77d57f25eefb3e23f80e0da18bf62897d4246b694c2fd2f9d559eae97a77f"
+}

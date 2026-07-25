@@ -1,0 +1,16 @@
+{
+  "name": "digital-identity-wallet-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart contracts for the university digital identity wallet (Hyperledger Besu)",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:besu": "npx hardhat run scripts/deployTrustedEntityRegistry.js --network besu",
+    "clean": "npx hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  }
+}

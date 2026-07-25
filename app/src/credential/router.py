@@ -10,13 +10,17 @@ from .models import Credential
 from .cryptography import sign_credential_with_private_key, calculate_credential_hash
 from .ipfsService import upload_file_to_ipfs
 from app.src.blockchain.hdWallet import derive_wallet_from_index
+from app.src.blockchain.config import get_blockchain_settings
+from app.src.blockchain.trusted_entity_registry import (
+    TrustedEntityRegistryError,
+    get_trusted_entity_registry,
+)
 from .enums import CredentialStatus
 from app.src.did.repository import check_did_exists, get_did_doc_by_user_id
 from app.src.common.auth_dependencies import CurrentUser, require_admin, get_current_user_from_token
 from app.src.common.pagination import paginate
 from app.src.common.messaging import event_bus
 from app.src.common.response import success_response, error_response
-from web3 import Web3
 import uuid
 import json
 import logging
@@ -101,7 +105,33 @@ async def issue_credential(
                 detail="Token eth_address does not match derived wallet address",
             )
 
-        # issuer_did = f"did:ethr:{admin_user.user_id}:{issuer_wallet.address}"
+        # Enforce on-chain Trusted List before issuing any VC.
+        blockchain_settings = get_blockchain_settings()
+        if blockchain_settings.require_trusted_issuer:
+            try:
+                registry = get_trusted_entity_registry()
+                if not registry.is_authorized_issuer(issuer_wallet.address):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=(
+                            "Issuer address is not an authorized PID/EAA provider "
+                            "in TrustedEntityRegistry"
+                        ),
+                    )
+            except HTTPException:
+                raise
+            except TrustedEntityRegistryError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                )
+            except Exception as exc:
+                logger.exception("TrustedEntityRegistry issuer check failed")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Failed to verify issuer on TrustedEntityRegistry: {exc}",
+                )
+
         issuer_did_doc = get_did_doc_by_user_id(db=db, user_id=admin_user.user_id)
         
         if not issuer_did_doc:
