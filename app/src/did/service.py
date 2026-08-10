@@ -9,7 +9,7 @@ from .schemas import (
 )
 from .models import Did
 from datetime import datetime, timezone
-from .dependencies import get_db, SessionLocal
+from .dependencies import get_db
 from app.src.common.messaging import event_bus
 from app.src.auth.repository import (
     get_user_by_id
@@ -18,7 +18,6 @@ from app.src.blockchain.hdWallet import derive_wallet_from_index
 from .telemetry import add_span_attributes
 from web3 import Web3
 from sqlalchemy.orm import Session
-from .blockchain import register_did_on_chain
 import uuid
 import json
 import logging
@@ -186,22 +185,7 @@ async def create_did_service(
     # Document hash to store in blockchain
     document_hash = Web3.keccak(text=document_json).hex()
 
-    # Endpoint address for resolve method
-    service_endpoint = f"/dids/{did_id}"
-
-    # ثبت روی بلاکچین
-    # فرض: این تابع به smart contract وصل می‌شود
-    # TODO implement functionality - Also should be handled by events (did.created)
-    # chain_result = await register_did_on_chain(
-    #     identity_address=ethereum_address,
-    #     document_hash=document_hash,
-    #     service_endpoint=service_endpoint
-    # )
-
-    # tx_hash = chain_result.get("tx_hash")
-    # block_number = chain_result.get("block_number")
-
-    # Save in database as a cache reference
+    # Save in database as a cache reference; on-chain anchor happens via did.created
     new_did = Did(
         user_id=target_user.id,
         did=did_id,
@@ -223,10 +207,11 @@ async def create_did_service(
             "did": did_id,
             "method": "ethr",
             "ethereum_address": ethereum_address,
+            "document_hash": document_hash,
             "tx_hash": None,
             "block_number": None
         }
-    # TODO use this event for submit in blockchain
+    # did.created consumer registers the DID on DIDRegistry and updates tx/block.
     if background_tasks is not None:
         background_tasks.add_task(
             event_bus.publish,
@@ -250,7 +235,6 @@ async def create_did_service(
     return did_document
 
 
-## TODO check with blockchain for consitency
 def resolve_did_service(
     did: str,
     db: Session,
@@ -286,14 +270,38 @@ def resolve_did_service(
             detail=f"Invalid DID document stored in database: {str(e)}"
         )
 
+    resolution_error = None
+    deactivated = None
+
+    try:
+        from app.src.blockchain.config import get_blockchain_settings
+        from app.src.blockchain.did_registry import get_did_registry
+
+        settings = get_blockchain_settings()
+        if settings.check_did_on_chain_resolve and settings.did_registry_address:
+            registry = get_did_registry()
+            on_chain = registry.get_did_record(did)
+            deactivated = not on_chain["active"]
+
+            local_hash = (did_record.document_hash or "").lower()
+            chain_hash = (on_chain["document_hash"] or "").lower()
+            if local_hash and chain_hash and local_hash != chain_hash:
+                resolution_error = "DID document hash mismatch with on-chain registry"
+            elif deactivated:
+                resolution_error = "DID is deactivated on-chain"
+    except Exception as exc:
+        logger.warning("DID on-chain consistency check skipped: %s", exc)
+
     resolution_metadata = DIDResolutionMetadata(
         contentType="application/did+json",
-        retrieved=datetime.now(timezone.utc).isoformat()
+        retrieved=datetime.now(timezone.utc).isoformat(),
+        error=resolution_error,
     )
 
     document_metadata = DIDDocumentMetadata(
         created=did_record.created_at.isoformat() if did_record.created_at else None,
-        updated=did_record.updated_at.isoformat() if did_record.updated_at else None
+        updated=did_record.updated_at.isoformat() if did_record.updated_at else None,
+        deactivated=deactivated,
     )
 
     return DIDResolution(

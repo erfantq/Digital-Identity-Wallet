@@ -1,0 +1,9 @@
+{
+  "contract": "DIDRegistry",
+  "address": "0x9393486896D3ae612B4939afAF2C367Df17CC39B",
+  "admin": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "deployer": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "chainId": 1337,
+  "deployedAt": "2026-07-25T18:13:21.325Z",
+  "txHash": "0x3c4aa26a7e616c85962d0ebeac323bdccfd40401c55d6cc5974ecc05eb0cf6e9"
+}
