@@ -4,7 +4,7 @@ from .service import create_did_service
 from .blockchain import register_did_on_chain
 from .repository import get_did_by_string, update_did_chain_anchor
 from app.src.blockchain.config import get_blockchain_settings
-from app.src.blockchain.did_registry import DIDRegistryError
+from .registry import DIDRegistryError
 import logging
 import sys
 

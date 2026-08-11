@@ -2,18 +2,18 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.src.blockchain.schemas import AuthorizeIssuerRequest
-from app.src.blockchain.trusted_entity_registry import (
+from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
 )
+from app.src.trust.schemas import AuthorizeIssuerRequest
 from app.src.common.auth_dependencies import CurrentUser, require_admin
 from app.src.common.response import success_response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/blockchain/trusted-entities",
+    prefix="/trusted-entities",
     tags=["trusted-entities"],
 )
 
@@ -28,7 +28,9 @@ def check_authorized_issuer(account: str):
             message="Issuer authorization checked successfully",
         )
     except TrustedEntityRegistryError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
     except Exception as exc:
         logger.exception("Failed issuer authorization check for %s", account)
         raise HTTPException(
@@ -50,7 +52,9 @@ def authorize_issuer(
             message="Issuer authorized on-chain successfully",
         )
     except TrustedEntityRegistryError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
     except Exception as exc:
         logger.exception("Failed to authorize issuer")
         raise HTTPException(
@@ -72,7 +76,9 @@ def revoke_issuer(
             message="Issuer revoked on-chain successfully",
         )
     except TrustedEntityRegistryError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
     except Exception as exc:
         logger.exception("Failed to revoke issuer account=%s", account)
         raise HTTPException(

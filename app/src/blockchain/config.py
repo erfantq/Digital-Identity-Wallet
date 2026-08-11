@@ -21,7 +21,11 @@ class BlockchainSettings:
             "",
         )
         self.did_registry_address = os.getenv("DID_REGISTRY_ADDRESS", "")
-        # Private key that owns TrustedEntityRegistry / DIDRegistry on Besu
+        self.credential_registry_address = os.getenv(
+            "CREDENTIAL_REGISTRY_ADDRESS",
+            "",
+        )
+        # Private key that owns registry contracts on Besu
         self.trust_admin_private_key = os.getenv("BESU_TRUST_ADMIN_PRIVATE_KEY", "")
         self.require_trusted_issuer = (
             os.getenv("REQUIRE_TRUSTED_ISSUER", "true").lower() == "true"
@@ -29,8 +33,14 @@ class BlockchainSettings:
         self.require_did_on_chain = (
             os.getenv("REQUIRE_DID_ON_CHAIN", "true").lower() == "true"
         )
+        self.require_credential_on_chain = (
+            os.getenv("REQUIRE_CREDENTIAL_ON_CHAIN", "true").lower() == "true"
+        )
         self.check_did_on_chain_resolve = (
             os.getenv("CHECK_DID_ON_CHAIN_RESOLVE", "true").lower() == "true"
+        )
+        self.check_credential_on_chain_verify = (
+            os.getenv("CHECK_CREDENTIAL_ON_CHAIN_VERIFY", "true").lower() == "true"
         )
 
 

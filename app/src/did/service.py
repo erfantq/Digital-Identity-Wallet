@@ -275,7 +275,7 @@ def resolve_did_service(
 
     try:
         from app.src.blockchain.config import get_blockchain_settings
-        from app.src.blockchain.did_registry import get_did_registry
+        from app.src.did.registry import get_did_registry
 
         settings = get_blockchain_settings()
         if settings.check_did_on_chain_resolve and settings.did_registry_address:

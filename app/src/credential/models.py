@@ -21,6 +21,11 @@ class Credential(Base):
 
     credential = Column(JSON, nullable=False)
 
+    credential_hash = Column(String(66), nullable=True)
+    tx_hash = Column(String(66), nullable=True)
+    block_number = Column(Integer, nullable=True)
+    revoke_tx_hash = Column(String(66), nullable=True)
+
     status = Column(
         Enum(
             CredentialStatus,

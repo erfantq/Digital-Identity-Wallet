@@ -1,10 +1,7 @@
 import logging
 
 from app.src.blockchain.config import get_blockchain_settings
-from app.src.blockchain.did_registry import (
-    DIDRegistryError,
-    get_did_registry,
-)
+from app.src.did.registry import DIDRegistryError, get_did_registry
 
 logger = logging.getLogger(__name__)
 

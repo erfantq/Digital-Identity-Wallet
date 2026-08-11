@@ -78,3 +78,7 @@ class DIDResolution(BaseModel):
     didResolutionMetadata: DIDResolutionMetadata
     didDocument: DIDDocument
     didDocumentMetadata: DIDDocumentMetadata
+
+
+class DeactivateDidRequest(BaseModel):
+    did: str = Field(..., description="DID string to deactivate on-chain")

@@ -4,14 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from prometheus_fastapi_instrumentator import Instrumentator
-from .schemas import CredentialIssue, credential_form_parser
+from .schemas import CredentialIssue, CredentialVerifyRequest, credential_form_parser
 from .dependencies import get_db
 from .models import Credential
 from .cryptography import sign_credential_with_private_key, calculate_credential_hash
 from .ipfsService import upload_file_to_ipfs
+from .verification import verify_credential
 from app.src.blockchain.hdWallet import derive_wallet_from_index
 from app.src.blockchain.config import get_blockchain_settings
-from app.src.blockchain.trusted_entity_registry import (
+from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
 )
@@ -21,6 +22,7 @@ from app.src.common.auth_dependencies import CurrentUser, require_admin, get_cur
 from app.src.common.pagination import paginate
 from app.src.common.messaging import event_bus
 from app.src.common.response import success_response, error_response
+from .registry import CredentialRegistryError, get_credential_registry
 import uuid
 import json
 import logging
@@ -38,6 +40,37 @@ router = APIRouter(
     prefix="/credentials",
     tags=["credentials"]
 )
+
+
+@router.post("/verify", tags=["credentials"])
+async def verify_credential_endpoint(
+    request: CredentialVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Relying Party verification endpoint.
+
+    Body:
+    {
+      "credential": { ... full signed VC JSON ... }
+    }
+    """
+    try:
+        result = verify_credential(credential=request.credential, db=db)
+        return success_response(
+            data=result,
+            message=(
+                "Credential is valid"
+                if result.get("valid")
+                else "Credential verification failed"
+            ),
+        )
+    except Exception as exc:
+        logger.exception("Credential verification failed unexpectedly")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to verify credential: {exc}",
+        )
 
 
 @router.post("/issue", tags=["credentials"])
@@ -186,12 +219,15 @@ async def issue_credential(
             verification_method=f"{issuer_did}#controller",
         )
 
+        credential_hash = calculate_credential_hash(signed_credential)
+
         new_credential = Credential(
             credential_id=credential_id,
             issuer=issuer_did,
             holder_did=cred.holder_did,
             type=cred.type,
             credential=json.dumps(signed_credential, ensure_ascii=False),
+            credential_hash=credential_hash,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -202,9 +238,6 @@ async def issue_credential(
         
         logger.info(f"Successfully issued credential: {credential_id}")
 
-        # TODO - emit this event for credential issuance (without private key or sensitive data) for use in blockchain service to submit in smart contract
-        credential_hash = calculate_credential_hash(signed_credential)
-
         background_tasks.add_task(
             event_bus.publish,
             "cred.created",
@@ -212,6 +245,7 @@ async def issue_credential(
                 "credential_id": credential_id,
                 "holder_did": cred.holder_did,
                 "issuer_did": issuer_did,
+                "issuer_address": issuer_wallet.address,
                 "credential_hash": credential_hash,
                 "issued_at": issued_at,
                 "type": credential_type,
@@ -355,7 +389,31 @@ async def list_credentials_by_user_id(
             detail="Failed to list credentials",
         )
 
-@router.get("/credentials/{credential_id}")
+@router.get("/on-chain/status")
+def get_credential_on_chain_status(
+    credential_id: str = Query(..., description="Full credential id (urn:uuid:...)"),
+):
+    try:
+        registry = get_credential_registry()
+        record = registry.get_credential_record(credential_id)
+        return success_response(
+            data=record,
+            message="Credential on-chain status fetched successfully",
+        )
+    except CredentialRegistryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to fetch credential on-chain status id=%s", credential_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Credential not found on-chain or unreadable: {exc}",
+        )
+
+@router.get("/{credential_id}")
 async def get_credential(credential_id: str, db: Session = Depends(get_db)):
     credential = db.query(Credential).filter(Credential.credential_id == credential_id).first()
 
@@ -374,16 +432,22 @@ async def get_credential(credential_id: str, db: Session = Depends(get_db)):
             "status": credential.status,
             "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
             "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
-            "credential": json.loads(credential.credential),
+            "tx_hash": credential.tx_hash,
+            "block_number": credential.block_number,
+            "revoke_tx_hash": credential.revoke_tx_hash,
+            "credential": json.loads(credential.credential)
+            if isinstance(credential.credential, str)
+            else credential.credential,
         },
         message="Credential retrieved successfully",
     )
     
-@router.post("/credentials/revoke")
+@router.post("/revoke")
 async def revoke_credential(
-    credential_id: str, 
+    credential_id: str,
     background_tasks: BackgroundTasks,
     reason: str | None = None,
+    reason_code: int = Query(0, ge=0, description="Compact on-chain revoke reason code"),
     db: Session = Depends(get_db),
     admin_user: CurrentUser = Depends(require_admin),
 ):
@@ -392,8 +456,6 @@ async def revoke_credential(
         .filter(Credential.credential_id == credential_id)
         .first()
     )
-    
-    # TODO - check the credential is matched with blockchain
 
     if not credential:
         raise HTTPException(
@@ -418,7 +480,7 @@ async def revoke_credential(
         db.commit()
         db.refresh(credential)
 
-        # TODO - publish this event so I have to revoke it on blockchain
+        # On-chain revoke happens asynchronously via cred.revoked consumer.
         background_tasks.add_task(
             event_bus.publish,
             "cred.revoked",
@@ -429,6 +491,7 @@ async def revoke_credential(
                 "revoked_by": admin_user.user_id,
                 "revoked_at": revoked_at.isoformat(),
                 "reason": reason,
+                "reason_code": reason_code,
             },
         )
 
@@ -439,6 +502,7 @@ async def revoke_credential(
                 if hasattr(credential.status, "value")
                 else credential.status,
                 "revoked_at": revoked_at.isoformat(),
+                "reason_code": reason_code,
             },
             message="Credential revoked successfully",
         )
