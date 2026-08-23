@@ -9,6 +9,7 @@
     "deploy:besu": "npx hardhat run scripts/deployTrustedEntityRegistry.js --network besu",
     "deploy:did:besu": "npx hardhat run scripts/deployDIDRegistry.js --network besu",
     "deploy:credential:besu": "npx hardhat run scripts/deployCredentialRegistry.js --network besu",
+    "deploy:sbt:besu": "npx hardhat run scripts/deployCertificateSBT.js --network besu",
     "clean": "npx hardhat clean"
   },
   "devDependencies": {

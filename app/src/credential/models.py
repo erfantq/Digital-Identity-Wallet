@@ -25,6 +25,10 @@ class Credential(Base):
     tx_hash = Column(String(66), nullable=True)
     block_number = Column(Integer, nullable=True)
     revoke_tx_hash = Column(String(66), nullable=True)
+    sbt_token_id = Column(Integer, nullable=True)
+    sbt_tx_hash = Column(String(66), nullable=True)
+    sbt_token_uri = Column(String(512), nullable=True)
+    sbt_revoke_tx_hash = Column(String(66), nullable=True)
 
     status = Column(
         Enum(

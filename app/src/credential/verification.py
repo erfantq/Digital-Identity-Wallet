@@ -13,8 +13,9 @@ from app.src.credential.registry import (
     get_credential_registry,
     holder_did_hash_from_string,
 )
-from app.src.did.registry import DIDRegistryError, get_did_registry
+from app.src.credential.sbt import CertificateSBTError, get_certificate_sbt
 from app.src.did.repository import get_did_by_string
+from app.src.did.registry import DIDRegistryError, get_did_registry
 from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
@@ -55,6 +56,7 @@ def verify_credential(credential: dict[str, Any], db=None) -> dict[str, Any]:
     4. credential anchored on CredentialRegistry
     5. credential hash matches on-chain record
     6. credential not revoked on-chain
+    7. CertificateSBT minted to holder and not revoked
     """
     checks: dict[str, bool | None] = {
         "signature": None,
@@ -64,6 +66,9 @@ def verify_credential(credential: dict[str, Any], db=None) -> dict[str, Any]:
         "hash_match": None,
         "not_revoked": None,
         "holder_match": None,
+        "sbt_minted": None,
+        "sbt_owner_match": None,
+        "sbt_not_revoked": None,
     }
     errors: list[str] = []
     details: dict[str, Any] = {}
@@ -245,6 +250,81 @@ def verify_credential(credential: dict[str, Any], db=None) -> dict[str, Any]:
         checks["hash_match"] = None
         checks["not_revoked"] = None
         checks["holder_match"] = None
+
+    # 7) CertificateSBT: minted, owner, not revoked
+    if settings.check_certificate_sbt_verify:
+        if not settings.certificate_sbt_address:
+            checks["sbt_minted"] = False
+            checks["sbt_owner_match"] = False
+            checks["sbt_not_revoked"] = False
+            errors.append("CERTIFICATE_SBT_ADDRESS is not configured")
+        else:
+            try:
+                sbt = get_certificate_sbt()
+                if not sbt.is_minted(credential_id):
+                    checks["sbt_minted"] = False
+                    checks["sbt_owner_match"] = False
+                    checks["sbt_not_revoked"] = False
+                    errors.append("Certificate SBT is not minted on-chain")
+                else:
+                    sbt_record = sbt.get_certificate(credential_id)
+                    details["sbt"] = sbt_record
+                    checks["sbt_minted"] = True
+
+                    sbt_not_revoked = not sbt_record["revoked"]
+                    checks["sbt_not_revoked"] = sbt_not_revoked
+                    if not sbt_not_revoked:
+                        errors.append("Certificate SBT is revoked on-chain")
+
+                    holder_address = eth_address_from_did(holder_did) if holder_did else None
+                    if not holder_address and holder_did:
+                        did_record = (
+                            get_did_by_string(db, holder_did) if db is not None else None
+                        )
+                        if did_record and did_record.ethereum_address:
+                            holder_address = Web3.to_checksum_address(
+                                did_record.ethereum_address
+                            )
+
+                    if holder_address:
+                        owner_match = (
+                            holder_address.lower() == sbt_record["owner"].lower()
+                        )
+                        checks["sbt_owner_match"] = owner_match
+                        if not owner_match:
+                            errors.append(
+                                "Certificate SBT owner does not match holder address"
+                            )
+                    else:
+                        checks["sbt_owner_match"] = False
+                        errors.append(
+                            "Cannot resolve holder address to check CertificateSBT owner"
+                        )
+
+                    attached = (
+                        subject.get("attachedDocument")
+                        if isinstance(subject, dict)
+                        else None
+                    )
+                    if attached:
+                        details["attached_document"] = attached
+                    token_uri = sbt_record.get("token_uri") or ""
+                    if not token_uri:
+                        errors.append("Certificate SBT tokenURI is empty")
+            except CertificateSBTError as exc:
+                checks["sbt_minted"] = False
+                checks["sbt_owner_match"] = False
+                checks["sbt_not_revoked"] = False
+                errors.append(f"CertificateSBT check failed: {exc}")
+            except Exception as exc:
+                checks["sbt_minted"] = False
+                checks["sbt_owner_match"] = False
+                checks["sbt_not_revoked"] = False
+                errors.append(f"CertificateSBT check failed: {exc}")
+    else:
+        checks["sbt_minted"] = None
+        checks["sbt_owner_match"] = None
+        checks["sbt_not_revoked"] = None
 
     required_passed = all(
         value is not False for value in checks.values() if value is not None

@@ -1,0 +1,11 @@
+{
+  "contract": "CertificateSBT",
+  "address": "0x6468751F5D94540338058254D8F9BD1AcEa498Fe",
+  "admin": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "name": "UniversityCertificate",
+  "symbol": "UNICERT",
+  "deployer": "0xC9C913c8c3C1Cd416d80A0abF475db2062F161f6",
+  "chainId": 1337,
+  "deployedAt": "2026-08-14T17:55:09.308Z",
+  "txHash": "0xa53b83e0e6ef5c3b48ca3357d60298ba4dca77d0ec722b13b9231ca3b82ea112"
+}

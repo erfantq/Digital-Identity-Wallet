@@ -19,7 +19,7 @@ router = APIRouter(
     tags=["auth"]
 )
 
-
+# Admin registers a new user
 @router.post("/register", response_model=RegisterResponse)
 async def register(request: RegisterRequest, db: Session = Depends(get_db), admin_user: User = Depends(require_admin)):
     return await register_user(

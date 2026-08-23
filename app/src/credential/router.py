@@ -7,9 +7,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from .schemas import CredentialIssue, CredentialVerifyRequest, credential_form_parser
 from .dependencies import get_db
 from .models import Credential
-from .cryptography import sign_credential_with_private_key, calculate_credential_hash
-from .ipfsService import upload_file_to_ipfs
+from .cryptography import (
+    sign_credential_with_private_key,
+    calculate_credential_hash,
+    eth_address_from_did,
+)
+from .ipfsService import IpfsUploadError, upload_file_to_ipfs
 from .verification import verify_credential
+from .nft_metadata import pin_certificate_nft_metadata
 from app.src.blockchain.hdWallet import derive_wallet_from_index
 from app.src.blockchain.config import get_blockchain_settings
 from app.src.trust.registry import (
@@ -17,12 +22,13 @@ from app.src.trust.registry import (
     get_trusted_entity_registry,
 )
 from .enums import CredentialStatus
-from app.src.did.repository import check_did_exists, get_did_doc_by_user_id
+from app.src.did.repository import check_did_exists, get_did_doc_by_user_id, get_did_by_string
 from app.src.common.auth_dependencies import CurrentUser, require_admin, get_current_user_from_token
 from app.src.common.pagination import paginate
 from app.src.common.messaging import event_bus
 from app.src.common.response import success_response, error_response
 from .registry import CredentialRegistryError, get_credential_registry
+from .sbt import CertificateSBTError, get_certificate_sbt
 import uuid
 import json
 import logging
@@ -173,12 +179,22 @@ async def issue_credential(
                 detail="Issuer DID not found",
             )
             
+        ipfs_url = None
         if attachment is not None:
-            res = await upload_file_to_ipfs(attachment)
-            
+            try:
+                res = await upload_file_to_ipfs(attachment)
+            except IpfsUploadError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                )
+
             if res.status_code != 200:
-                raise Exception(f"Failed to upload to IPFS: {res.text}")
-            
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Failed to upload document to IPFS: {res.text}",
+                )
+
             data = res.json()
             cid = data["IpfsHash"]
             ipfs_url = f"ipfs://{cid}"
@@ -197,7 +213,6 @@ async def issue_credential(
         
         if attachment and ipfs_url:
             credential_subject["attachedDocument"] = ipfs_url
-            ## TODO submit on blockchain as nft
 
         vc_payload = {
             "@context": [
@@ -221,6 +236,33 @@ async def issue_credential(
 
         credential_hash = calculate_credential_hash(signed_credential)
 
+        nft_metadata_uri = None
+        if blockchain_settings.require_certificate_sbt:
+            try:
+                nft_metadata_uri = await pin_certificate_nft_metadata(
+                    signed_credential=signed_credential,
+                    credential_id=credential_id,
+                    credential_type=credential_type,
+                    issuer_did=issuer_did,
+                    holder_did=cred.holder_did,
+                    credential_hash=credential_hash,
+                    image_uri=ipfs_url,
+                )
+                logger.info(
+                    "Pinned certificate NFT metadata id=%s uri=%s",
+                    credential_id,
+                    nft_metadata_uri,
+                )
+            except IpfsUploadError as exc:
+                logger.exception(
+                    "Failed to pin certificate NFT metadata during issue id=%s",
+                    credential_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Failed to pin certificate NFT metadata to IPFS: {exc}",
+                )
+
         new_credential = Credential(
             credential_id=credential_id,
             issuer=issuer_did,
@@ -228,6 +270,7 @@ async def issue_credential(
             type=cred.type,
             credential=json.dumps(signed_credential, ensure_ascii=False),
             credential_hash=credential_hash,
+            sbt_token_uri=nft_metadata_uri,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -238,17 +281,27 @@ async def issue_credential(
         
         logger.info(f"Successfully issued credential: {credential_id}")
 
+        holder_did_record = get_did_by_string(db, cred.holder_did)
+        holder_address = (
+            holder_did_record.ethereum_address
+            if holder_did_record and holder_did_record.ethereum_address
+            else eth_address_from_did(cred.holder_did)
+        )
+
         background_tasks.add_task(
             event_bus.publish,
             "cred.created",
             {
                 "credential_id": credential_id,
                 "holder_did": cred.holder_did,
+                "holder_address": holder_address,
                 "issuer_did": issuer_did,
                 "issuer_address": issuer_wallet.address,
                 "credential_hash": credential_hash,
                 "issued_at": issued_at,
                 "type": credential_type,
+                "attached_document": ipfs_url,
+                "nft_metadata_uri": nft_metadata_uri,
             }
         )
         
@@ -258,6 +311,8 @@ async def issue_credential(
                 "issuer": issuer_did,
                 "holder_did": cred.holder_did,
                 "credential": signed_credential,
+                "attached_document": ipfs_url,
+                "nft_metadata_uri": nft_metadata_uri,
             },
             message="Credential issued successfully",
         )
@@ -317,6 +372,9 @@ async def list_auth_user_credentials(
                         "status": credential.status,
                         "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
                         "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
+                        "sbt_token_id": credential.sbt_token_id,
+                        "sbt_tx_hash": credential.sbt_tx_hash,
+                        "sbt_token_uri": credential.sbt_token_uri,
                         "credential": json.loads(credential.credential),
                     }
                     for credential in paginated["items"]
@@ -373,6 +431,9 @@ async def list_credentials_by_user_id(
                         "status": credential.status,
                         "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
                         "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
+                        "sbt_token_id": credential.sbt_token_id,
+                        "sbt_tx_hash": credential.sbt_tx_hash,
+                        "sbt_token_uri": credential.sbt_token_uri,
                         "credential": json.loads(credential.credential),
                     }
                     for credential in paginated["items"]
@@ -413,6 +474,31 @@ def get_credential_on_chain_status(
             detail=f"Credential not found on-chain or unreadable: {exc}",
         )
 
+
+@router.get("/on-chain/sbt")
+def get_certificate_sbt_status(
+    credential_id: str = Query(..., description="Full credential id (urn:uuid:...)"),
+):
+    try:
+        sbt = get_certificate_sbt()
+        record = sbt.get_certificate(credential_id)
+        return success_response(
+            data=record,
+            message="Certificate SBT on-chain status fetched successfully",
+        )
+    except CertificateSBTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to fetch CertificateSBT status id=%s", credential_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Certificate SBT not found on-chain or unreadable: {exc}",
+        )
+
 @router.get("/{credential_id}")
 async def get_credential(credential_id: str, db: Session = Depends(get_db)):
     credential = db.query(Credential).filter(Credential.credential_id == credential_id).first()
@@ -435,6 +521,10 @@ async def get_credential(credential_id: str, db: Session = Depends(get_db)):
             "tx_hash": credential.tx_hash,
             "block_number": credential.block_number,
             "revoke_tx_hash": credential.revoke_tx_hash,
+            "sbt_token_id": credential.sbt_token_id,
+            "sbt_tx_hash": credential.sbt_tx_hash,
+            "sbt_token_uri": credential.sbt_token_uri,
+            "sbt_revoke_tx_hash": credential.sbt_revoke_tx_hash,
             "credential": json.loads(credential.credential)
             if isinstance(credential.credential, str)
             else credential.credential,

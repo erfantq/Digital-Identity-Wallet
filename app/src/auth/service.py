@@ -54,6 +54,7 @@ async def register_user(
         role=role
     )
 
+    # used in DID service to create DID for the user
     await event_bus.publish(
         "user.created",
         {

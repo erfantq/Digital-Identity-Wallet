@@ -43,3 +43,37 @@ def update_credential_revoke_anchor(
     db.commit()
     db.refresh(record)
     return record
+
+
+def update_credential_sbt_anchor(
+    db: Session,
+    credential_id: str,
+    token_id: int,
+    tx_hash: str,
+    token_uri: str,
+) -> Credential | None:
+    record = get_credential_by_id(db, credential_id)
+    if not record:
+        return None
+
+    record.sbt_token_id = token_id
+    record.sbt_tx_hash = tx_hash
+    record.sbt_token_uri = token_uri
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def update_credential_sbt_revoke_anchor(
+    db: Session,
+    credential_id: str,
+    sbt_revoke_tx_hash: str,
+) -> Credential | None:
+    record = get_credential_by_id(db, credential_id)
+    if not record:
+        return None
+
+    record.sbt_revoke_tx_hash = sbt_revoke_tx_hash
+    db.commit()
+    db.refresh(record)
+    return record
