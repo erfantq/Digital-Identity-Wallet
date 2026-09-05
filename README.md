@@ -169,7 +169,7 @@ More detail: [DOCKER.md](./DOCKER.md)
 ```text
 ├── app/src/           # FastAPI domain modules (auth, did, credential, trust)
 ├── alembic/           # Database migrations
-├── contracts/         # Solidity registries + CertificateSBT
+├── blockchain/        # Hardhat project (Solidity registries + CertificateSBT)
 ├── frontend/          # React SPA
 ├── docs/              # Architecture & API docs
 ├── scripts/           # Seed / ops helpers
@@ -212,4 +212,4 @@ More detail: [DOCKER.md](./DOCKER.md)
 
 ## License
 
-If no license file is present in this repository, usage rights are as defined by the project owners.
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).

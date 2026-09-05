@@ -39,7 +39,7 @@ Entry point: `app/src/main.py` — mounts routers, connects RabbitMQ consumers, 
 | Item | Detail |
 |------|--------|
 | Chain | Hyperledger Besu (local chain ID `1337`) |
-| Contracts | Solidity ^0.8.27 (`contracts/contracts/`) |
+| Contracts | Solidity ^0.8.27 (`blockchain/contracts/`) |
 | Explorer | Chainlens / Epirus |
 | Off-chain files | Pinata → IPFS (`ipfs://…`) |
 

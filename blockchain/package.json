@@ -1,5 +1,5 @@
 {
-  "name": "digital-identity-wallet-contracts",
+  "name": "digital-identity-wallet-blockchain",
   "version": "1.0.0",
   "private": true,
   "description": "Smart contracts for the university digital identity wallet (Hyperledger Besu)",

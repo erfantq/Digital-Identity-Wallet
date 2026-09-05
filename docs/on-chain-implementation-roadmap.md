@@ -4,7 +4,7 @@
 
 - رودمپ کلی پروژه (`digital-identity-wallet_FUM.pdf`)
 - وضعیت فعلی بک‌اند (`app/src`)
-- قراردادهای موجود (`contracts/contracts`)
+- قراردادهای موجود (`blockchain/contracts`)
 - مستند تحلیل بک‌اند (`docs/backend-flow-and-smart-contract-roadmap.md`)
 
 هدف: رسیدن به **MVP on-chain** بدون ذخیره داده شخصی روی chain — فقط anchor، trust و revocation.
@@ -23,8 +23,8 @@
 
 ### قراردادهای پیاده‌شده
 
-- `contracts/contracts/TrustedEntityRegistry.sol`
-- `contracts/contracts/DIDRegistry.sol`
+- `blockchain/contracts/TrustedEntityRegistry.sol`
+- `blockchain/contracts/DIDRegistry.sol`
 
 ### اتصالات فعال بک‌اند
 
@@ -230,8 +230,8 @@ POST /credentials/verify
 
 ### فاز 1 — CredentialRegistry
 
-- [ ] نوشتن `contracts/contracts/CredentialRegistry.sol`
-- [ ] deploy + ABI + `contracts/deployments/CredentialRegistry-1337.json`
+- [ ] نوشتن `blockchain/contracts/CredentialRegistry.sol`
+- [ ] deploy + ABI + `blockchain/deployments/CredentialRegistry-1337.json`
 - [ ] `app/src/blockchain/abis/CredentialRegistry.json`
 - [ ] `app/src/blockchain/credential_registry.py`
 - [ ] env: `CREDENTIAL_REGISTRY_ADDRESS`
@@ -358,6 +358,6 @@ CHECK_CREDENTIAL_ON_CHAIN_VERIFY=true
 
 - رودمپ کلی: `digital-identity-wallet_FUM.pdf`
 - تحلیل بک‌اند: `docs/backend-flow-and-smart-contract-roadmap.md`
-- قراردادها: `contracts/contracts/`
+- قراردادها: `blockchain/contracts/`
 - integration layer: `app/src/blockchain/`
 - event handlers: `app/src/did/events.py`, `app/src/credential/events.py`
