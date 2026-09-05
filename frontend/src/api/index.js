@@ -1,0 +1,5 @@
+export * from './client'
+export * from './auth'
+export * from './dids'
+export * from './credentials'
+export * from './trust'

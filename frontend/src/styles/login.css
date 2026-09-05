@@ -1,0 +1,324 @@
+/* Login — Stitch FUM Wallet design tokens */
+.login-page {
+  --login-primary: #001e40;
+  --login-primary-container: #003366;
+  --login-on-primary: #ffffff;
+  --login-on-primary-container: #799dd6;
+  --login-secondary: #0059bb;
+  --login-surface: #f7f9ff;
+  --login-surface-low: #f1f4f9;
+  --login-surface-lowest: #ffffff;
+  --login-on-surface: #181c20;
+  --login-on-surface-variant: #43474f;
+  --login-outline: #737780;
+  --login-outline-variant: #c3c6d1;
+  --login-error: #ba1a1a;
+  --login-radius-lg: 8px;
+  --login-radius-xl: 12px;
+  --login-space-xs: 4px;
+  --login-space-sm: 8px;
+  --login-space-md: 16px;
+  --login-space-lg: 24px;
+  --login-space-xl: 32px;
+
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--login-space-md);
+  background: var(--login-surface-low);
+  color: var(--login-on-surface);
+  font-family: Inter, var(--font-sans);
+}
+
+.login-page__main {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-space-lg);
+  padding: var(--login-space-xl);
+  background: var(--login-surface-lowest);
+  border: 1px solid var(--login-outline-variant);
+  border-radius: var(--login-radius-xl);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.login-card__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.login-card__logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--login-space-md);
+}
+
+.login-card__title {
+  margin: 0 0 var(--login-space-xs);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  color: var(--login-primary);
+}
+
+.login-card__subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--login-on-surface-variant);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-space-md);
+  width: 100%;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-space-xs);
+}
+
+.login-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--login-space-sm);
+}
+
+.login-field__label {
+  font-size: 14px;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--login-on-surface);
+}
+
+.login-field__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-field__icon {
+  color: var(--login-outline);
+  pointer-events: none;
+  user-select: none;
+}
+
+.login-field__icon--start {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+}
+
+.login-field__control input {
+  width: 100%;
+  padding: 12px 16px 12px 40px;
+  border: 1px solid var(--login-outline-variant);
+  border-radius: var(--login-radius-lg);
+  background: var(--login-surface);
+  color: var(--login-on-surface);
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-field__control input.login-field__input--with-toggle {
+  padding-right: 44px;
+}
+
+.login-field__control input::placeholder {
+  color: var(--login-outline-variant);
+}
+
+.login-field__control input:focus {
+  outline: none;
+  border-color: var(--login-secondary);
+  box-shadow: 0 0 0 3px rgba(0, 89, 187, 0.2);
+}
+
+.login-field__control input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-field__toggle {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--login-outline);
+  cursor: pointer;
+}
+
+.login-field__toggle:hover {
+  color: var(--login-on-surface);
+}
+
+.login-link {
+  color: var(--login-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.login-link:hover {
+  color: var(--login-primary);
+  text-decoration: underline;
+}
+
+.login-form__error {
+  margin: 0;
+  color: var(--login-error);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.login-form__actions {
+  padding-top: var(--login-space-sm);
+}
+
+.login-submit {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--login-radius-lg);
+  background: var(--login-primary-container);
+  color: var(--login-on-primary);
+  font-size: 14px;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  background: var(--login-primary);
+}
+
+.login-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-submit:focus-visible {
+  outline: 2px solid var(--login-primary-container);
+  outline-offset: 2px;
+}
+
+.login-card__support {
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--login-on-surface-variant);
+}
+
+.login-card__support p {
+  margin: 0;
+}
+
+.login-card__support--in-card {
+  display: none;
+  margin-top: 0;
+  padding-top: var(--login-space-md);
+  border-top: 1px solid var(--login-outline-variant);
+}
+
+.login-page__footer {
+  margin-top: var(--login-space-xl);
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--login-on-surface-variant);
+}
+
+.login-page__footer p {
+  margin: 0;
+}
+
+.login-page__footer-break {
+  display: none;
+}
+
+.login-page__home {
+  margin-top: var(--login-space-md) !important;
+}
+
+.login-page__home a {
+  color: var(--login-on-surface-variant);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.login-page__home a:hover {
+  color: var(--login-primary);
+  text-decoration: underline;
+}
+
+/* Mobile adaptations from Stitch mobile HTML */
+@media (max-width: 767px) {
+  .login-page {
+    background: var(--login-surface);
+  }
+
+  .login-page__main {
+    width: min(100%, 24rem);
+  }
+
+  .login-card {
+    padding: var(--login-space-lg);
+    box-shadow: 0 1px 2px rgba(0, 30, 64, 0.06);
+  }
+
+  .login-card__title {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .login-field__control input {
+    background: var(--login-surface-low);
+  }
+
+  .login-submit {
+    color: var(--login-on-primary);
+  }
+
+  .login-submit:hover:not(:disabled) {
+    background: var(--login-primary);
+    color: var(--login-on-primary);
+  }
+
+  .login-card__support--in-card {
+    display: block;
+  }
+
+  .login-page__footer {
+    display: none;
+  }
+}

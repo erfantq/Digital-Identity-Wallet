@@ -84,15 +84,6 @@ class CertificateSBTService:
         result["token_id"] = record["token_id"]
         return result
 
-    def is_minted(self, credential_id: str) -> bool:
-        try:
-            self.get_certificate(credential_id)
-            return True
-        except CertificateSBTError:
-            return False
-        except Exception:
-            return False
-
     def get_certificate(self, credential_id: str) -> dict[str, Any]:
         credential_id_hash = credential_id_hash_from_string(credential_id)
         try:
@@ -122,6 +113,15 @@ class CertificateSBTService:
             "revoked": int(revoked_at) > 0,
             "token_uri": uri,
         }
+
+    def is_minted(self, credential_id: str) -> bool:
+        try:
+            self.get_certificate(credential_id)
+            return True
+        except CertificateSBTError:
+            return False
+        except Exception:
+            return False
 
     def _get_owner_account(self):
         private_key = self.settings.trust_admin_private_key

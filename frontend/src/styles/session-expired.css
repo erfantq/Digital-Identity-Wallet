@@ -1,0 +1,24 @@
+.session-expired-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.session-expired-page__panel {
+  width: min(100%, 480px);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.session-expired-page__panel p {
+  color: var(--color-text-muted);
+}
+
+.session-expired-page__panel .btn {
+  margin-top: 1rem;
+}

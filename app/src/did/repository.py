@@ -18,6 +18,11 @@ def get_did_by_string(db: Session, did: str) -> Did | None:
     return db.query(Did).filter(Did.did == did).first()
 
 
+def get_user_id_for_did(db: Session, did: str) -> int | None:
+    record = get_did_by_string(db, did)
+    return record.user_id if record else None
+
+
 def update_did_chain_anchor(
     db: Session,
     did: str,
@@ -33,3 +38,20 @@ def update_did_chain_anchor(
     db.commit()
     db.refresh(record)
     return record
+
+
+def update_did_active_status(db: Session, did: str, active: bool) -> Did | None:
+    record = get_did_by_string(db, did)
+    if not record:
+        return None
+
+    record.active = active
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def delete_did_by_user_id(db: Session, user_id: int) -> int:
+    deleted = db.query(Did).filter(Did.user_id == user_id).delete(synchronize_session=False)
+    db.commit()
+    return deleted

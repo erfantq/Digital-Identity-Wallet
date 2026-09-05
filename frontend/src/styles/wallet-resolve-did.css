@@ -1,0 +1,170 @@
+/* Resolve DID — wallet portal (results reuse wallet-did layout) */
+.wallet-resolve {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.wallet-resolve__lookup {
+  background: var(--admin-surface-lowest, #ffffff);
+  border: 1px solid var(--admin-outline-variant, #c3c6d1);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+.wallet-resolve__lookup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wallet-resolve__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--admin-on-surface-variant, #43474f);
+}
+
+.wallet-resolve__lookup-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.wallet-resolve__input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.wallet-resolve__input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--admin-on-surface-variant, #43474f);
+  pointer-events: none;
+}
+
+.wallet-resolve__input {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  border: 1px solid var(--admin-outline-variant, #c3c6d1);
+  border-radius: 8px;
+  background: #f8f9fa;
+  font: inherit;
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--admin-on-surface, #181c20);
+}
+
+.wallet-resolve__input:focus {
+  outline: 2px solid rgba(0, 89, 187, 0.25);
+  border-color: var(--admin-secondary, #0059bb);
+  background: #fff;
+}
+
+.wallet-resolve__input--invalid {
+  border-color: #ba1a1a;
+  background: #fff5f5;
+}
+
+.wallet-resolve__resolve-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--admin-primary, #001e40);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wallet-resolve__resolve-btn:hover:not(:disabled) {
+  background: #002a57;
+}
+
+.wallet-resolve__resolve-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.wallet-resolve__spin {
+  animation: wallet-resolve-spin 0.8s linear infinite;
+}
+
+@keyframes wallet-resolve-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wallet-resolve__field-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #ba1a1a;
+}
+
+.wallet-resolve__hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--admin-on-surface-variant, #43474f);
+}
+
+.wallet-resolve__examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wallet-resolve__examples-label {
+  width: 100%;
+  font-size: 13px;
+  color: var(--admin-on-surface-variant, #43474f);
+}
+
+.wallet-resolve__example-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--admin-outline-variant, #c3c6d1);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--admin-secondary, #0059bb);
+  cursor: pointer;
+}
+
+.wallet-resolve__example-btn:hover {
+  background: #eef3f9;
+}
+
+.wallet-resolve__error-did {
+  margin: 0;
+  font-size: 13px;
+  color: var(--admin-on-surface-variant, #43474f);
+}
+
+.wallet-resolve__error-did code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+@media (max-width: 640px) {
+  .wallet-resolve__lookup-row {
+    flex-direction: column;
+  }
+
+  .wallet-resolve__resolve-btn {
+    min-height: 44px;
+  }
+}

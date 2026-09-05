@@ -50,7 +50,9 @@ def get_current_user_from_db(
 def require_admin_from_db(
     current_user: User = Depends(get_current_user_from_db),
 ):
-    if current_user.role != UserRoleEnum.ADMIN:
+    role = current_user.role
+    role_value = role.value if hasattr(role, "value") else role
+    if role_value not in (UserRoleEnum.ADMIN.value, UserRoleEnum.SUPER_ADMIN.value):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
@@ -59,5 +61,20 @@ def require_admin_from_db(
     return current_user
 
 
+def require_super_admin_from_db(
+    current_user: User = Depends(get_current_user_from_db),
+):
+    role = current_user.role
+    role_value = role.value if hasattr(role, "value") else role
+    if role_value != UserRoleEnum.SUPER_ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required",
+        )
+
+    return current_user
+
+
 get_current_user = get_current_user_from_db
 require_admin = require_admin_from_db
+require_super_admin = require_super_admin_from_db

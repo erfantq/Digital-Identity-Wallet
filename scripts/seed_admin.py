@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bootstrap an admin user with wallet, DID, on-chain anchor, and issuer authorization.
+Bootstrap a super_admin user with wallet, DID, on-chain anchor, and issuer authorization.
 
 Creates the user directly in the database (no RabbitMQ dependency), then builds the
 DID document and optionally anchors it on Besu and authorizes the wallet on
@@ -9,7 +9,7 @@ TrustedEntityRegistry.
 Usage (from repo root):
 
     python scripts/seed_admin.py
-    python scripts/seed_admin.py --username admin --password admin123 --email admin@example.com
+    python scripts/seed_admin.py --username superadmin --password admin123 --email superadmin@example.com
     python scripts/seed_admin.py --skip-chain
 
 Inside Docker:
@@ -62,18 +62,18 @@ logger = logging.getLogger("seed_admin")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create bootstrap admin with DID and issuer authorization.",
+        description="Create bootstrap super_admin with DID and issuer authorization.",
     )
-    parser.add_argument("--username", default="admin", help="Admin username")
-    parser.add_argument("--password", default="admin123", help="Admin password")
+    parser.add_argument("--username", default="superadmin", help="Super admin username")
+    parser.add_argument("--password", default="admin123", help="Super admin password")
     parser.add_argument(
         "--email",
-        default="admin@example.com",
-        help="Admin email (optional but recommended)",
+        default="superadmin@example.com",
+        help="Super admin email (optional but recommended)",
     )
     parser.add_argument(
         "--role",
-        default=UserRoleEnum.ADMIN.value,
+        default=UserRoleEnum.SUPER_ADMIN.value,
         choices=[role.value for role in UserRoleEnum],
         help="User role to assign",
     )

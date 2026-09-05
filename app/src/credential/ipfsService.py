@@ -6,6 +6,18 @@ PINATA_API_KEY = os.getenv("PINATA_API_KEY")
 PINATA_SECRET_API_KEY = os.getenv("PINATA_SECRET_API_KEY")
 PINATA_FILE_URL = "https://api.pinata.cloud/pinning/pinFileToIPFS"
 PINATA_JSON_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
+IPFS_GATEWAY_URL = os.getenv(
+    "IPFS_GATEWAY_URL", "https://gateway.pinata.cloud/ipfs"
+).rstrip("/")
+
+
+def ipfs_uri_to_http(uri: str | None) -> str | None:
+    if not uri or not uri.startswith("ipfs://"):
+        return None
+    cid = uri[7:].lstrip("/")
+    if not cid:
+        return None
+    return f"{IPFS_GATEWAY_URL}/{cid}"
 
 
 class IpfsUploadError(Exception):

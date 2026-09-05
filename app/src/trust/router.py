@@ -1,13 +1,23 @@
 import logging
 
+
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
+
+
 from app.src.trust.registry import (
+
     TrustedEntityRegistryError,
+
     get_trusted_entity_registry,
+
 )
-from app.src.trust.schemas import AuthorizeIssuerRequest
-from app.src.common.auth_dependencies import CurrentUser, require_admin
+
+from app.src.trust.schemas import AuthorizeIssuerRequest, RevokeIssuerRequest
+
+from app.src.common.auth_dependencies import CurrentUser, require_super_admin
+
 from app.src.common.response import success_response
 
 logger = logging.getLogger(__name__)
@@ -20,6 +30,7 @@ router = APIRouter(
 
 @router.get("/{account}/is-authorized-issuer")
 def check_authorized_issuer(account: str):
+
     try:
         registry = get_trusted_entity_registry()
         authorized = registry.is_authorized_issuer(account)
@@ -31,18 +42,24 @@ def check_authorized_issuer(account: str):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         )
+
     except Exception as exc:
+
         logger.exception("Failed issuer authorization check for %s", account)
         raise HTTPException(
+
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to check issuer authorization: {exc}",
         )
 
 
+
+
+
 @router.post("/authorize")
 def authorize_issuer(
     request: AuthorizeIssuerRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_super_admin),
 ):
     try:
         registry = get_trusted_entity_registry()
@@ -63,14 +80,14 @@ def authorize_issuer(
         )
 
 
-@router.post("/{account}/revoke")
+@router.post("/revoke")
 def revoke_issuer(
-    account: str,
-    _: CurrentUser = Depends(require_admin),
+    request: RevokeIssuerRequest,
+    _: CurrentUser = Depends(require_super_admin),
 ):
     try:
         registry = get_trusted_entity_registry()
-        result = registry.revoke_issuer(account)
+        result = registry.revoke_issuer(request.account)
         return success_response(
             data=result,
             message="Issuer revoked on-chain successfully",
@@ -80,7 +97,7 @@ def revoke_issuer(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         )
     except Exception as exc:
-        logger.exception("Failed to revoke issuer account=%s", account)
+        logger.exception("Failed to revoke issuer account=%s", request.account)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to revoke issuer: {exc}",

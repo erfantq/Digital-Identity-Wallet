@@ -15,6 +15,7 @@ from app.src.auth.repository import (
     get_user_by_id
 )
 from app.src.blockchain.hdWallet import derive_wallet_from_index
+from app.src.blockchain.config import get_blockchain_settings
 from .telemetry import add_span_attributes
 from web3 import Web3
 from sqlalchemy.orm import Session
@@ -30,6 +31,13 @@ logging.basicConfig(
     force=True,
 )
 logger = logging.getLogger(__name__)
+
+
+def _normalize_document_hash(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = value.lower().strip()
+    return normalized[2:] if normalized.startswith("0x") else normalized
 
 
 def generate_did_document(did: str, method: DIDMethod, controller: str = None):
@@ -61,11 +69,12 @@ def generate_did_document(did: str, method: DIDMethod, controller: str = None):
     elif method == DIDMethod.ETHR:
         key_id = f"{did}#owner"
         addr = did.split(":")[-1]
+        chain_id = get_blockchain_settings().chain_id
         verification_method = VerificationMethod(
             id=key_id,
             type="EcdsaSecp256k1RecoveryMethod2020",
             controller=did,
-            blockchainAccountId=f"eip155:1:{addr}"
+            blockchainAccountId=f"eip155:{chain_id}:{addr}"
         )
     else:
         # Default key type
@@ -145,7 +154,6 @@ async def create_did_service(
     # ethereum_address = Web3.to_checksum_address(wallet.address)
     ethereum_address = wallet.address
 
-    # TODO add chain id (besu)
     did_id = f"did:ethr:{target_user.id}:{ethereum_address}"
 
     existing = check_did_exists(db=db, did=did_id)
@@ -274,7 +282,6 @@ def resolve_did_service(
     deactivated = None
 
     try:
-        from app.src.blockchain.config import get_blockchain_settings
         from app.src.did.registry import get_did_registry
 
         settings = get_blockchain_settings()
@@ -283,12 +290,10 @@ def resolve_did_service(
             on_chain = registry.get_did_record(did)
             deactivated = not on_chain["active"]
 
-            local_hash = (did_record.document_hash or "").lower()
-            chain_hash = (on_chain["document_hash"] or "").lower()
+            local_hash = _normalize_document_hash(did_record.document_hash)
+            chain_hash = _normalize_document_hash(on_chain["document_hash"])
             if local_hash and chain_hash and local_hash != chain_hash:
                 resolution_error = "DID document hash mismatch with on-chain registry"
-            elif deactivated:
-                resolution_error = "DID is deactivated on-chain"
     except Exception as exc:
         logger.warning("DID on-chain consistency check skipped: %s", exc)
 

@@ -1,0 +1,126 @@
+/* Admin Management — reuses user-directory layout */
+
+.admin-mgmt__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.admin-mgmt__filters .user-dir__filters-form {
+  flex: 1;
+}
+
+.admin-mgmt__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--admin-primary-container, #003366);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-mgmt__add-btn:hover {
+  background: var(--admin-primary, #001e40);
+}
+
+.admin-mgmt__hint {
+  margin: 0 0 16px;
+  color: var(--admin-on-surface-variant, #43474f);
+  font-size: 0.9rem;
+}
+
+.admin-mgmt__hint a {
+  color: var(--admin-secondary, #0059bb);
+  font-weight: 600;
+}
+
+.admin-mgmt__issuer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-mgmt__issuer-pill--yes {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.admin-mgmt__issuer-pill--no {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+.admin-mgmt__issuer-pill--unknown {
+  background: #e8eaed;
+  color: #5f6368;
+}
+
+.admin-mgmt__detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--admin-outline-variant, #c3c6d1);
+}
+
+.admin-mgmt__action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-mgmt__action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-mgmt__action-btn--primary {
+  background: var(--admin-primary-container, #003366);
+  color: #fff;
+}
+
+.admin-mgmt__action-btn--primary:hover:not(:disabled) {
+  background: var(--admin-primary, #001e40);
+}
+
+.admin-mgmt__action-btn--danger {
+  background: #c5221f;
+  color: #fff;
+}
+
+.admin-mgmt__action-btn--danger:hover:not(:disabled) {
+  background: #a31b18;
+}
+
+.admin-mgmt__action-btn--secondary {
+  background: #fff;
+  border-color: var(--admin-outline-variant, #c3c6d1);
+  color: var(--admin-on-surface, #181c20);
+}
+
+.admin-mgmt__action-btn--secondary:hover:not(:disabled) {
+  background: var(--admin-surface-container-low, #f1f4f9);
+}
+
+.user-dir__role--super_admin {
+  background: #e8def8;
+  color: #4a148c;
+}

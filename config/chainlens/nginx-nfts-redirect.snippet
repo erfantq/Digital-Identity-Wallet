@@ -1,0 +1,13 @@
+# Chainlens Free does not implement /nfts/* (API throws "Not available in free version").
+# Apply this redirect so /nfts/0x... opens the contract page instead of HTTP 500.
+#
+# Besu Developer Quickstart (WSL example):
+#   BESU_CHAINLENS_NGINX=/home/erfantq/besu-test-network/config/chainlens/nginx.conf
+#   ./scripts/patch_chainlens_nginx.sh
+#
+# Then reload nginx:
+#   docker restart chainlensnginx
+
+location ~ ^/nfts/(0x[0-9a-fA-F]+)/?$ {
+  return 302 /contracts/$1;
+}

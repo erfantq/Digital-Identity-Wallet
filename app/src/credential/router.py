@@ -12,7 +12,7 @@ from .cryptography import (
     calculate_credential_hash,
     eth_address_from_did,
 )
-from .ipfsService import IpfsUploadError, upload_file_to_ipfs
+from .ipfsService import IpfsUploadError, ipfs_uri_to_http, upload_file_to_ipfs
 from .verification import verify_credential
 from .nft_metadata import pin_certificate_nft_metadata
 from app.src.blockchain.hdWallet import derive_wallet_from_index
@@ -22,7 +22,9 @@ from app.src.trust.registry import (
     get_trusted_entity_registry,
 )
 from .enums import CredentialStatus
-from app.src.did.repository import check_did_exists, get_did_doc_by_user_id, get_did_by_string
+from app.src.auth.repository import get_user_by_username
+from app.src.did.repository import check_did_exists, get_did_doc_by_user_id, get_did_by_string, get_user_id_for_did
+from app.src.auth.repository import get_user_by_id
 from app.src.common.auth_dependencies import CurrentUser, require_admin, get_current_user_from_token
 from app.src.common.pagination import paginate
 from app.src.common.messaging import event_bus
@@ -48,6 +50,38 @@ router = APIRouter(
 )
 
 
+def _serialize_credential_list_item(credential) -> dict:
+    parsed = json.loads(credential.credential)
+    attached_document = (parsed.get("credentialSubject") or {}).get("attachedDocument")
+    status = (
+        credential.status.value
+        if hasattr(credential.status, "value")
+        else credential.status
+    )
+
+    return {
+        "credential_id": credential.credential_id,
+        "issuer": credential.issuer,
+        "holder_did": credential.holder_did,
+        "type": credential.type,
+        "status": status,
+        "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
+        "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
+        "credential_hash": credential.credential_hash,
+        "tx_hash": credential.tx_hash,
+        "block_number": credential.block_number,
+        "sbt_token_id": credential.sbt_token_id,
+        "sbt_tx_hash": credential.sbt_tx_hash,
+        "sbt_token_uri": credential.sbt_token_uri,
+        "attached_document": attached_document,
+        "attached_document_gateway_url": ipfs_uri_to_http(attached_document),
+        "nft_metadata_gateway_url": ipfs_uri_to_http(credential.sbt_token_uri),
+        "created_at": credential.created_at.isoformat() if credential.created_at else None,
+        "updated_at": credential.updated_at.isoformat() if credential.updated_at else None,
+        "credential": parsed,
+    }
+
+# ok
 @router.post("/verify", tags=["credentials"])
 async def verify_credential_endpoint(
     request: CredentialVerifyRequest,
@@ -78,7 +112,7 @@ async def verify_credential_endpoint(
             detail=f"Failed to verify credential: {exc}",
         )
 
-
+# ok
 @router.post("/issue", tags=["credentials"])
 async def issue_credential(
     background_tasks: BackgroundTasks,
@@ -96,7 +130,7 @@ async def issue_credential(
         "firstName": "Erfan",
         "lastName": "Taghavi",
         "nationalId": "0920000000",
-        "studentId": "400123456",
+        "username": "student01",
         "university": "Ferdowsi University of Mashhad",
         "faculty": "Engineering",
         "department": "Computer Engineering",
@@ -130,6 +164,14 @@ async def issue_credential(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Holder DID not found",
+            )
+
+        holder_user_id = get_user_id_for_did(db, cred.holder_did)
+        holder_user = get_user_by_id(db, holder_user_id) if holder_user_id else None
+        if not holder_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No user account linked to holder DID",
             )
 
         print(f"admin user wallet index: {admin_user.wallet_index}")
@@ -205,12 +247,32 @@ async def issue_credential(
         issued_at = datetime.now(timezone.utc).isoformat()
 
         credential_type = getattr(cred, "type", None) or "UniversityCredential"
-        
+
         credential_subject = {
             **cred.credential_data,
             "id": cred.holder_did,
+            "username": holder_user.username,
         }
-        
+        credential_subject.pop("studentId", None)
+
+        # If the request includes a member role, it must match the holder account
+        # linked to this DID (prevents inspect/devtools role spoofing).
+        requested_role = credential_subject.get("role")
+        if requested_role is not None and str(requested_role).strip() != "":
+            holder_role = (
+                holder_user.role.value
+                if hasattr(holder_user.role, "value")
+                else str(holder_user.role)
+            )
+            if str(requested_role).strip().lower() != str(holder_role).strip().lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "credential_data.role does not match the account role "
+                        "linked to the holder DID"
+                    ),
+                )
+
         if attachment and ipfs_url:
             credential_subject["attachedDocument"] = ipfs_url
 
@@ -312,7 +374,9 @@ async def issue_credential(
                 "holder_did": cred.holder_did,
                 "credential": signed_credential,
                 "attached_document": ipfs_url,
+                "attached_document_gateway_url": ipfs_uri_to_http(ipfs_url),
                 "nft_metadata_uri": nft_metadata_uri,
+                "nft_metadata_gateway_url": ipfs_uri_to_http(nft_metadata_uri),
             },
             message="Credential issued successfully",
         )
@@ -327,7 +391,8 @@ async def issue_credential(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to issue credential",
         )
-        
+
+# todo: implement frontend for normal user  
 @router.get("/users/auth/credentials")
 async def list_auth_user_credentials(
     current_user: CurrentUser = Depends(get_current_user_from_token),
@@ -364,19 +429,7 @@ async def list_auth_user_credentials(
         return success_response(
             data={
                 "items": [
-                    {
-                        "credential_id": credential.credential_id,
-                        "issuer": credential.issuer,
-                        "holder_did": credential.holder_did,
-                        "type": credential.type,
-                        "status": credential.status,
-                        "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
-                        "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
-                        "sbt_token_id": credential.sbt_token_id,
-                        "sbt_tx_hash": credential.sbt_tx_hash,
-                        "sbt_token_uri": credential.sbt_token_uri,
-                        "credential": json.loads(credential.credential),
-                    }
+                    _serialize_credential_list_item(credential)
                     for credential in paginated["items"]
                 ],
                 "pagination": paginated["pagination"],
@@ -384,25 +437,35 @@ async def list_auth_user_credentials(
             message="Credentials retrieved successfully",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to list credentials: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list credentials",
         )
-        
-@router.get("/users/{user_id}/credentials")
-async def list_credentials_by_user_id(
-    user_id: int, 
+
+
+@router.get("/users/{username}/credentials")
+async def list_credentials_by_username(
+    username: str,
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
 ):
     try:
-        user_did_doc = get_did_doc_by_user_id(user_id=user_id, db=db)
-        
+        user = get_user_by_username(db, username)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        user_did_doc = get_did_doc_by_user_id(user_id=user.id, db=db)
+
         if not user_did_doc:
-            logger.warning(f"No DID document found for user_id={user_id}")
+            logger.warning(f"No DID document found for username={username}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No DID document found for requested user",
@@ -423,19 +486,7 @@ async def list_credentials_by_user_id(
         return success_response(
             data={
                 "items": [
-                    {
-                        "credential_id": credential.credential_id,
-                        "issuer": credential.issuer,
-                        "holder_did": credential.holder_did,
-                        "type": credential.type,
-                        "status": credential.status,
-                        "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
-                        "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
-                        "sbt_token_id": credential.sbt_token_id,
-                        "sbt_tx_hash": credential.sbt_tx_hash,
-                        "sbt_token_uri": credential.sbt_token_uri,
-                        "credential": json.loads(credential.credential),
-                    }
+                    _serialize_credential_list_item(credential)
                     for credential in paginated["items"]
                 ],
                 "pagination": paginated["pagination"],
@@ -443,6 +494,8 @@ async def list_credentials_by_user_id(
             message="Credentials retrieved successfully",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to list credentials: {str(e)}")
         raise HTTPException(
@@ -450,6 +503,7 @@ async def list_credentials_by_user_id(
             detail="Failed to list credentials",
         )
 
+# ok (not needed)
 @router.get("/on-chain/status")
 def get_credential_on_chain_status(
     credential_id: str = Query(..., description="Full credential id (urn:uuid:...)"),
@@ -474,7 +528,7 @@ def get_credential_on_chain_status(
             detail=f"Credential not found on-chain or unreadable: {exc}",
         )
 
-
+# ok (not needed)
 @router.get("/on-chain/sbt")
 def get_certificate_sbt_status(
     credential_id: str = Query(..., description="Full credential id (urn:uuid:...)"),
@@ -499,6 +553,7 @@ def get_certificate_sbt_status(
             detail=f"Certificate SBT not found on-chain or unreadable: {exc}",
         )
 
+# ok
 @router.get("/{credential_id}")
 async def get_credential(credential_id: str, db: Session = Depends(get_db)):
     credential = db.query(Credential).filter(Credential.credential_id == credential_id).first()
@@ -531,7 +586,8 @@ async def get_credential(credential_id: str, db: Session = Depends(get_db)):
         },
         message="Credential retrieved successfully",
     )
-    
+
+# ok 
 @router.post("/revoke")
 async def revoke_credential(
     credential_id: str,
