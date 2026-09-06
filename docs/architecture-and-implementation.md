@@ -242,6 +242,8 @@ Response shape: `{ valid, checks, errors, details }` inside the standard success
 | `dids` | did, ethereum_address, document, document_hash, tx_hash, active |
 | `credentials` | credential_id, issuer, holder_did, credential JSON, status, hashes, tx / SBT metadata |
 
+Field-by-field meanings for DID strings, DID Documents, VC JSON, and DB columns: [did-and-credential-fields.md](./did-and-credential-fields.md).
+
 Migrations live under `alembic/versions/`.
 
 ---

@@ -196,6 +196,7 @@ More detail: [DOCKER.md](./DOCKER.md)
 |-----|-------------|
 | [docs/overview.md](./docs/overview.md) | Product overview |
 | [docs/architecture-and-implementation.md](./docs/architecture-and-implementation.md) | Architecture & implementation |
+| [docs/did-and-credential-fields.md](./docs/did-and-credential-fields.md) | DID, DID Document & credential field glossary |
 | [docs/api-reference.md](./docs/api-reference.md) | REST API reference |
 | [DOCKER.md](./DOCKER.md) | Docker operations |
 | [frontend/README.md](./frontend/README.md) | Frontend notes |
