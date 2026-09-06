@@ -115,12 +115,91 @@ Frontend (React)  →  FastAPI Backend  →  PostgreSQL
 
 ---
 
-## Quick Start
+## Setup & Requirements
 
-### 1. Backend (Docker)
+### Prerequisites
+
+| Requirement | Notes |
+|-------------|--------|
+| Docker Desktop + Docker Compose | Backend, Postgres, RabbitMQ |
+| Node.js 20+ and npm | Frontend + Hardhat contract deploy |
+| Python 3.12 | Only if running the backend without Docker |
+| Hyperledger Besu | Private chain for DID / credential registries and SBT |
+| Pinata account (optional) | IPFS uploads for attachments and NFT metadata |
+
+Recommended local Besu setup: [Hyperledger Besu Developer Quickstart](https://github.com/hyperledger/besu-docs) (RPC on `http://127.0.0.1:8545`, `chainId` `1337`).
+
+### 1. Configure environment
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+Edit `.env` and set at least:
+
+| Variable | Purpose |
+|----------|---------|
+| `MASTER_WALLET_MNEMONIC` | BIP-39 mnemonic for deriving user wallets |
+| `SECRET_KEY` / `JWT_SECRET_KEY` | Auth secrets (change from placeholders) |
+| `BESU_RPC_URL` | Besu JSON-RPC. From Docker backend use `http://host.docker.internal:8545`; without Docker use `http://127.0.0.1:8545` |
+| `BESU_CHAIN_ID` | Usually `1337` for Quickstart |
+| `BESU_TRUST_ADMIN_PRIVATE_KEY` | Must match the contract **admin** / deployer key (Quickstart demo key is fine for local-only) |
+| `PINATA_API_KEY` / `PINATA_SECRET_API_KEY` | Optional; needed for IPFS pinning |
+
+Leave the `*_REGISTRY_ADDRESS` / `CERTIFICATE_SBT_ADDRESS` values blank or outdated until you finish step 3 — addresses from `.env.example` are from a previous network and will not work on a fresh Besu.
+
+### 2. Start Hyperledger Besu
+
+Start your Besu network and confirm RPC responds:
+
+```powershell
+curl http://127.0.0.1:8545
+```
+
+The backend container reaches the host Besu via `host.docker.internal:8545` (see `BESU_RPC_URL` in `.env`).
+
+### 3. Deploy smart contracts
+
+On a new machine (or a fresh Besu chain), redeploy all four contracts with Hardhat, then copy the new addresses into `.env`.
+
+```powershell
+cd blockchain
+npm install
+npm run compile
+
+# Optional overrides (defaults: RPC 127.0.0.1:8545, chainId 1337, Quickstart deployer key)
+# $env:BESU_RPC_URL="http://127.0.0.1:8545"
+# $env:BESU_CHAIN_ID="1337"
+# $env:BESU_DEPLOYER_KEY="0x..."
+
+npm run deploy:besu              # TrustedEntityRegistry
+npm run deploy:did:besu          # DIDRegistry
+npm run deploy:credential:besu   # CredentialRegistry
+npm run deploy:sbt:besu          # CertificateSBT
+cd ..
+```
+
+Each script prints the contract address and writes:
+
+- `blockchain/deployments/TrustedEntityRegistry-1337.json`
+- `blockchain/deployments/DIDRegistry-1337.json`
+- `blockchain/deployments/CredentialRegistry-1337.json`
+- `blockchain/deployments/CertificateSBT-1337.json`
+
+Put those addresses into `.env`:
+
+```env
+TRUSTED_ENTITY_REGISTRY_ADDRESS=0x...
+DID_REGISTRY_ADDRESS=0x...
+CREDENTIAL_REGISTRY_ADDRESS=0x...
+CERTIFICATE_SBT_ADDRESS=0x...
+```
+
+`BESU_TRUST_ADMIN_PRIVATE_KEY` must be the same account that was set as registry admin at deploy time (by default the Hardhat deployer). If they differ, on-chain admin transactions will fail.
+
+### 4. Backend (Docker)
+
+```powershell
 docker compose up --build
 docker compose exec backend alembic upgrade head
 ```
@@ -131,15 +210,17 @@ docker compose exec backend alembic upgrade head
 | Swagger | http://localhost:8000/docs |
 | RabbitMQ UI | http://localhost:15672 (`guest` / `guest`) |
 
-Besu should be reachable from the backend (default `BESU_RPC_URL`, often via `host.docker.internal:8545`). Deploy contracts and set registry addresses in `.env`.
-
-Optional bootstrap:
+Optional admin bootstrap:
 
 ```powershell
 docker compose exec backend python scripts/seed_admin.py
 ```
 
-### 2. Frontend
+With `REQUIRE_TRUSTED_ISSUER=true`, authorize issuer addresses via the admin trust API after bootstrap (Swagger: trusted-issuer endpoints).
+
+More Docker detail: [DOCKER.md](./DOCKER.md)
+
+### 5. Frontend
 
 ```powershell
 cd frontend
@@ -148,19 +229,35 @@ npm install
 npm run dev
 ```
 
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_BASE_URL` | Backend API (default `http://localhost:8000`) |
+| `VITE_IPFS_GATEWAY_URL` | Gateway for `ipfs://` links |
+| `VITE_CHAINLENS_URL` | Optional Besu explorer UI |
+
 App: http://localhost:5173
 
-### 3. Backend without Docker
+### 6. Backend without Docker (alternative)
+
+Requires local Postgres and RabbitMQ matching your `.env`, plus a reachable Besu.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+# Use a host DATABASE_URL / RABBITMQ_URL (not the Docker service hostnames)
 alembic upgrade head
 uvicorn app.src.main:app --reload
 ```
 
-More detail: [DOCKER.md](./DOCKER.md)
+### First-run checklist
+
+1. Besu RPC is up
+2. All four contracts deployed; addresses written to `.env`
+3. `BESU_TRUST_ADMIN_PRIVATE_KEY` matches the deploy admin
+4. `docker compose up --build` + migrations
+5. Frontend `.env` points at the API
+6. Seed admin (optional) and authorize trusted issuers before issuing credentials
 
 ---
 
