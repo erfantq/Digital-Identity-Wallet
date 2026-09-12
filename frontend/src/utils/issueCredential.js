@@ -20,6 +20,29 @@ export const CREDENTIAL_TYPE_OPTIONS = [
 
 export const DEFAULT_CREDENTIAL_TYPE = CREDENTIAL_TYPE_OPTIONS[0].value
 
+const VALID_CREDENTIAL_TYPE_VALUES = new Set(
+  CREDENTIAL_TYPE_OPTIONS.map((option) => option.value),
+)
+
+const LEGACY_CREDENTIAL_TYPE_MAP = {
+  UniversityCredential: 'UniversityPIDCredential',
+  VerifiableCredential: 'UniversityPIDCredential',
+}
+
+export function normalizeCredentialType(type) {
+  if (!type) return DEFAULT_CREDENTIAL_TYPE
+  const cleaned = String(type).trim()
+  if (!cleaned) return DEFAULT_CREDENTIAL_TYPE
+  if (VALID_CREDENTIAL_TYPE_VALUES.has(cleaned)) return cleaned
+  return LEGACY_CREDENTIAL_TYPE_MAP[cleaned] || DEFAULT_CREDENTIAL_TYPE
+}
+
+export function formatCredentialTypeLabel(type) {
+  const normalized = normalizeCredentialType(type)
+  const option = CREDENTIAL_TYPE_OPTIONS.find((item) => item.value === normalized)
+  return option?.label || normalized
+}
+
 export function memberRoleFromAccountRole(accountRole) {
   if (accountRole === 'student') return 'Student'
   if (accountRole === 'teacher') return 'Teacher'

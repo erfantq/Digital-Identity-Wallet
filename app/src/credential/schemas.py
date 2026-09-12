@@ -3,11 +3,13 @@ import json
 from fastapi import Form, HTTPException
 from typing import Any
 
+from .enums import CredentialType
+
 
 class CredentialIssue(BaseModel):
     # issuer_did: str
     holder_did: str
-    type: str = "UniversityCredential"
+    type: CredentialType = CredentialType.UNIVERSITY_PID
     credential_data: dict
     # signature: str
 

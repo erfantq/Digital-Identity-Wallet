@@ -18,7 +18,12 @@ from app.src.common.auth_dependencies import CurrentUser
 from app.src.did.repository import get_did_doc_by_user_id, update_did_active_status, delete_did_by_user_id
 from app.src.did.models import Did
 from app.src.credential.models import Credential
-from app.src.credential.enums import CredentialStatus
+from app.src.credential.enums import (
+    CredentialStatus,
+    CredentialType,
+    normalize_credential_type,
+)
+from collections import Counter
 from sqlalchemy import func
 from web3 import Web3
 from .enums import UserRoleEnum
@@ -286,14 +291,16 @@ def get_admin_dashboard(db: Session):
         .count()
     )
 
+    type_counts: Counter[str] = Counter()
+    for cred_type, count in (
+        db.query(Credential.type, func.count(Credential.id))
+        .group_by(Credential.type)
+        .all()
+    ):
+        type_counts[normalize_credential_type(cred_type)] += count
     credentials_by_type = [
-        {"type": cred_type or "Unknown", "count": count}
-        for cred_type, count in (
-            db.query(Credential.type, func.count(Credential.id))
-            .group_by(Credential.type)
-            .order_by(func.count(Credential.id).desc())
-            .all()
-        )
+        {"type": cred_type.value, "count": type_counts.get(cred_type.value, 0)}
+        for cred_type in CredentialType
     ]
 
     recent_users_rows = (
@@ -320,7 +327,7 @@ def get_admin_dashboard(db: Session):
         recent_credentials.append(
             {
                 "credential_id": credential.credential_id,
-                "type": credential.type,
+                "type": normalize_credential_type(credential.type),
                 "status": credential.status.value
                 if hasattr(credential.status, "value")
                 else credential.status,

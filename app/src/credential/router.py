@@ -21,7 +21,7 @@ from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
 )
-from .enums import CredentialStatus
+from .enums import CredentialStatus, CredentialType, normalize_credential_type
 from app.src.auth.repository import get_user_by_username
 from app.src.did.repository import check_did_exists, get_did_doc_by_user_id, get_did_by_string, get_user_id_for_did
 from app.src.auth.repository import get_user_by_id
@@ -63,7 +63,7 @@ def _serialize_credential_list_item(credential) -> dict:
         "credential_id": credential.credential_id,
         "issuer": credential.issuer,
         "holder_did": credential.holder_did,
-        "type": credential.type,
+        "type": normalize_credential_type(credential.type),
         "status": status,
         "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
         "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
@@ -246,7 +246,11 @@ async def issue_credential(
         credential_id = f"urn:uuid:{uuid.uuid4()}"
         issued_at = datetime.now(timezone.utc).isoformat()
 
-        credential_type = getattr(cred, "type", None) or "UniversityCredential"
+        credential_type = (
+            cred.type.value
+            if isinstance(cred.type, CredentialType)
+            else CredentialType.UNIVERSITY_PID.value
+        )
 
         credential_subject = {
             **cred.credential_data,
@@ -329,7 +333,7 @@ async def issue_credential(
             credential_id=credential_id,
             issuer=issuer_did,
             holder_did=cred.holder_did,
-            type=cred.type,
+            type=credential_type,
             credential=json.dumps(signed_credential, ensure_ascii=False),
             credential_hash=credential_hash,
             sbt_token_uri=nft_metadata_uri,
@@ -569,7 +573,7 @@ async def get_credential(credential_id: str, db: Session = Depends(get_db)):
             "credential_id": credential.credential_id,
             "issuer": credential.issuer,
             "holder_did": credential.holder_did,
-            "type": credential.type,
+            "type": normalize_credential_type(credential.type),
             "status": credential.status,
             "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
             "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,

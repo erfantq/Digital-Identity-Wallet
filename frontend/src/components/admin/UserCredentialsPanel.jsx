@@ -10,6 +10,7 @@ import {
   statusLabel,
   truncateMiddle,
 } from '@/utils/credentialFormat'
+import { formatCredentialTypeLabel } from '@/utils/issueCredential'
 
 export function RevokeSuccessBanner({ credentialId, onDismiss }) {
   return (
@@ -288,7 +289,7 @@ export function CredentialsTable({
             <Fragment key={item.credential_id}>
               <tr className={isRevokedCredential(item) ? 'user-creds__row--revoked' : ''}>
                 <td>
-                  <div className="user-creds__type">{item.type}</div>
+                  <div className="user-creds__type">{formatCredentialTypeLabel(item.type)}</div>
                   <div className="user-creds__credential-id">{truncateMiddle(item.credential_id, 14, 10)}</div>
                   <div className="user-creds__issued-date">
                     Issued {formatCredentialDate(getIssuanceDate(item))}
@@ -363,7 +364,7 @@ export function CredentialsCards({
             <div className={`user-creds__card-accent user-creds__card-accent--${active ? 'active' : revoked ? 'revoked' : 'neutral'}`} />
             <div className="user-creds__card-header">
               <div>
-                <h4 className={revoked ? 'user-creds__card-title--revoked' : ''}>{item.type}</h4>
+                <h4 className={revoked ? 'user-creds__card-title--revoked' : ''}>{formatCredentialTypeLabel(item.type)}</h4>
                 <p className="user-creds__card-id">{item.credential_id}</p>
               </div>
               <StatusBadge item={item} />
@@ -526,7 +527,7 @@ export function RevokeCredentialModal({ item, loading, onConfirm, onCancel }) {
           <dl className="user-creds__confirm-meta">
             <div>
               <dt>Type</dt>
-              <dd>{item.type}</dd>
+              <dd>{formatCredentialTypeLabel(item.type)}</dd>
             </div>
             <div>
               <dt>Credential ID</dt>

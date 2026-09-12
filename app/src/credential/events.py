@@ -73,7 +73,9 @@ async def _build_and_pin_nft_metadata(data: dict, record) -> str:
     return await pin_certificate_nft_metadata(
         signed_credential=signed_credential,
         credential_id=data.get("credential_id") or "",
-        credential_type=data.get("type") or getattr(record, "type", None) or "UniversityCredential",
+        credential_type=data.get("type")
+        or getattr(record, "type", None)
+        or "UniversityPIDCredential",
         issuer_did=data.get("issuer_did") or getattr(record, "issuer", None) or "",
         holder_did=data.get("holder_did") or getattr(record, "holder_did", None) or "",
         credential_hash=data.get("credential_hash") or getattr(record, "credential_hash", None) or "",

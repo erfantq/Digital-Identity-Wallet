@@ -7,6 +7,11 @@ import {
   isRevokedCredential,
   truncateMiddle,
 } from '@/utils/credentialFormat'
+import {
+  CREDENTIAL_TYPE_OPTIONS,
+  formatCredentialTypeLabel,
+  normalizeCredentialType,
+} from '@/utils/issueCredential'
 
 const QUICK_ACTIONS = [
   { to: '/wallet/credentials', label: 'My Credentials', icon: 'badge', primary: true },
@@ -14,14 +19,6 @@ const QUICK_ACTIONS = [
   { to: '/wallet/resolve', label: 'Resolve DID', icon: 'search' },
   { to: '/wallet/verify', label: 'Verify Credential', icon: 'verified' },
 ]
-
-function formatTypeLabel(type) {
-  if (!type) return 'Unknown'
-  return type
-    .replace(/Credential$/, '')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .trim()
-}
 
 function formatDateTime(value) {
   if (!value) return '—'
@@ -306,15 +303,12 @@ export function WalletOverviewDashboard({
           {credentialsByType.map((row) => (
             <BreakdownBar
               key={row.type}
-              label={formatTypeLabel(row.type)}
+              label={formatCredentialTypeLabel(row.type)}
               count={row.count}
               total={credTypeTotal}
               tone="cred"
             />
           ))}
-          {credTypeTotal === 0 && (
-            <p className="admin-dash__empty">No credentials in your wallet yet.</p>
-          )}
         </section>
       </div>
 
@@ -336,7 +330,7 @@ export function WalletOverviewDashboard({
             {recentCredentials.map((item) => (
               <li key={item.credential_id} className="admin-dash__list-item admin-dash__list-item--stack">
                 <div>
-                  <strong>{formatTypeLabel(item.type)}</strong>
+                  <strong>{formatCredentialTypeLabel(item.type)}</strong>
                   <span className="admin-dash__list-sub">
                     {truncateMiddle(item.credential_id, 14, 8)}
                   </span>
@@ -397,13 +391,14 @@ export function buildWalletOverviewSummary(items = []) {
 
   const typeMap = new Map()
   for (const item of items) {
-    const type = item.type || 'Unknown'
+    const type = normalizeCredentialType(item.type)
     typeMap.set(type, (typeMap.get(type) || 0) + 1)
   }
 
-  const credentialsByType = [...typeMap.entries()]
-    .map(([type, count]) => ({ type, count }))
-    .sort((a, b) => b.count - a.count)
+  const credentialsByType = CREDENTIAL_TYPE_OPTIONS.map((option) => ({
+    type: option.value,
+    count: typeMap.get(option.value) || 0,
+  }))
 
   return {
     summary: {

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { MaterialIcon } from '@/components/landing/MaterialIcon'
 import { formatRoleLabel } from '@/utils/roles'
 import { truncateMiddle } from '@/utils/didFormat'
+import { formatCredentialTypeLabel } from '@/utils/issueCredential'
 
 const QUICK_ACTIONS = [
   { to: '/admin/issue', label: 'Issue Credential', icon: 'verified_user', primary: true },
@@ -12,14 +13,6 @@ const QUICK_ACTIONS = [
 ]
 
 const ROLE_ORDER = ['admin', 'teacher', 'student', 'user']
-
-function formatTypeLabel(type) {
-  if (!type) return 'Unknown'
-  return type
-    .replace(/Credential$/, '')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .trim()
-}
 
 function formatDate(value) {
   if (!value) return '—'
@@ -222,15 +215,12 @@ export function AdminDashboard({ data, username, onRefresh, loading }) {
           {credentialsByType.map((row) => (
             <BreakdownBar
               key={row.type}
-              label={formatTypeLabel(row.type)}
+              label={formatCredentialTypeLabel(row.type)}
               count={row.count}
               total={credTypeTotal}
               tone="cred"
             />
           ))}
-          {credTypeTotal === 0 && (
-            <p className="admin-dash__empty">No credentials issued yet.</p>
-          )}
         </section>
       </div>
 
@@ -282,7 +272,7 @@ export function AdminDashboard({ data, username, onRefresh, loading }) {
               {recentCredentials.map((item) => (
                 <li key={item.credential_id} className="admin-dash__list-item admin-dash__list-item--stack">
                   <div>
-                    <strong>{formatTypeLabel(item.type)}</strong>
+                    <strong>{formatCredentialTypeLabel(item.type)}</strong>
                     <span className="admin-dash__list-sub">
                       {item.holder_username
                         ? `@${item.holder_username}`

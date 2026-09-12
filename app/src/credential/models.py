@@ -17,7 +17,7 @@ class Credential(Base):
     # Example: did:ethr:0x...
     holder_did = Column(String(255), nullable=False, index=True) 
 
-    type = Column(String, default="VerifiableCredential")
+    type = Column(String, default="UniversityPIDCredential", nullable=False)
 
     credential = Column(JSON, nullable=False)
 

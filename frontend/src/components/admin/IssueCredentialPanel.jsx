@@ -5,6 +5,7 @@ import {
   ATTACHMENT_ACCEPT,
   CREDENTIAL_TYPE_OPTIONS,
   DEGREE_OPTIONS,
+  formatCredentialTypeLabel,
   ipfsGatewayUrls,
   memberRoleFromAccountRole,
   showsCertificateSection,
@@ -609,11 +610,11 @@ export function IssueCredentialSuccess({ result, jsonExpanded, onToggleJson, onV
           <CopyableValue label="Credential ID" value={result.credential_id} />
           <CopyableValue
             label="Credential Type"
-            value={
+            value={formatCredentialTypeLabel(
               Array.isArray(credential?.type)
                 ? credential.type[credential.type.length - 1]
-                : credential?.type
-            }
+                : credential?.type,
+            )}
           />
           <CopyableValue label="Account Username" value={credential?.credentialSubject?.username} />
           <CopyableValue label="Issuer DID" value={result.issuer} />
