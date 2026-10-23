@@ -3,15 +3,11 @@ import { MaterialIcon } from '@/components/landing/MaterialIcon'
 import { CopyButton } from '@/components/admin/DidManagementPanel'
 import {
   ATTACHMENT_ACCEPT,
-  CREDENTIAL_TYPE_OPTIONS,
-  DEGREE_OPTIONS,
   formatCredentialTypeLabel,
+  getDerivedFieldValues,
+  getVisibleTemplateFields,
   ipfsGatewayUrls,
   memberRoleFromAccountRole,
-  showsCertificateSection,
-  showsEnrollmentSection,
-  showsRoleSelector,
-  TEACHER_RANK_OPTIONS,
 } from '@/utils/issueCredential'
 
 function FormField({
@@ -21,6 +17,7 @@ function FormField({
   error,
   children,
   className = '',
+  hint,
 }) {
   return (
     <div className={`issue-cred__field ${className}`.trim()}>
@@ -29,6 +26,7 @@ function FormField({
         {required && <span className="issue-cred__required">*</span>}
       </label>
       {children}
+      {hint && <p className="issue-cred__field-hint">{hint}</p>}
       {error && (
         <p className="issue-cred__field-error" id={`${id}-error`}>
           {error}
@@ -47,8 +45,137 @@ function SectionHeader({ icon, title }) {
   )
 }
 
+function DynamicTemplateField({
+  field,
+  value,
+  fileValue,
+  error,
+  derivedRole,
+  holderLookupLoading,
+  holderAccountRole,
+  loading,
+  onFieldChange,
+  onFileFieldChange,
+  onClearFileField,
+}) {
+  const inputId = `field-${field.key}`
+
+  if (field.data_type === 'derived') {
+    return (
+      <FormField
+        id={inputId}
+        label={field.label}
+        required={field.required}
+        error={error}
+        hint="Locked to the wallet account role linked to this DID. It cannot be changed manually."
+      >
+        <div className={`issue-cred__input-wrap${error ? ' issue-cred__input-wrap--error' : ''}`}>
+          <input
+            id={inputId}
+            type="text"
+            className={`issue-cred__input issue-cred__input--locked${error ? ' issue-cred__input--error' : ''}`}
+            value={
+              derivedRole ||
+              (holderLookupLoading
+                ? 'Resolving from DID…'
+                : holderAccountRole
+                  ? `Unsupported account role: ${holderAccountRole}`
+                  : 'Resolved from holder DID')
+            }
+            readOnly
+            disabled
+            aria-readonly="true"
+          />
+          <MaterialIcon name="lock" size={18} className="issue-cred__lock-icon" />
+        </div>
+      </FormField>
+    )
+  }
+
+  if (field.data_type === 'select') {
+    return (
+      <FormField id={inputId} label={field.label} required={field.required} error={error}>
+        <select
+          id={inputId}
+          className="issue-cred__input issue-cred__select"
+          value={value ?? ''}
+          onChange={(event) => onFieldChange(field.key, event.target.value)}
+          disabled={loading}
+        >
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </FormField>
+    )
+  }
+
+  if (field.data_type === 'boolean') {
+    return (
+      <FormField id={inputId} label={field.label} required={field.required} error={error}>
+        <label className="issue-cred__checkbox">
+          <input
+            id={inputId}
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(event) => onFieldChange(field.key, event.target.checked)}
+            disabled={loading}
+          />
+          <span>Yes</span>
+        </label>
+      </FormField>
+    )
+  }
+
+  if (field.data_type === 'file') {
+    return (
+      <FormField id={inputId} label={field.label} required={field.required} error={error}>
+        {fileValue ? (
+          <div className="issue-cred__file-selected">
+            <span>{fileValue.name}</span>
+            <button type="button" onClick={() => onClearFileField(field.key)} disabled={loading}>
+              Remove
+            </button>
+          </div>
+        ) : (
+          <input
+            id={inputId}
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            className="issue-cred__input"
+            onChange={(event) => onFileFieldChange(field.key, event.target.files?.[0] ?? null)}
+            disabled={loading}
+          />
+        )}
+      </FormField>
+    )
+  }
+
+  const inputType =
+    field.data_type === 'number' ? 'number' : field.data_type === 'date' ? 'date' : 'text'
+
+  return (
+    <FormField id={inputId} label={field.label} required={field.required} error={error}>
+      <input
+        id={inputId}
+        type={inputType}
+        className={`issue-cred__input${error ? ' issue-cred__input--error' : ''}`}
+        value={value ?? ''}
+        onChange={(event) => onFieldChange(field.key, event.target.value)}
+        disabled={loading}
+      />
+    </FormField>
+  )
+}
+
 export function IssueCredentialForm({
   form,
+  template,
+  credentialTypes = [],
+  typesLoading = false,
+  typesError = null,
   fieldErrors,
   globalError,
   holderDidError,
@@ -57,21 +184,22 @@ export function IssueCredentialForm({
   loading,
   attachmentName,
   onChange,
-  onSelectChange,
+  onFieldValueChange,
   onCredentialTypeChange,
   onHolderDidBlur,
   onFileChange,
   onClearAttachment,
+  onFileFieldChange,
+  onClearFileField,
   onSubmit,
   onCancel,
 }) {
   const fileInputRef = useRef(null)
-
-  const selectedType =
-    CREDENTIAL_TYPE_OPTIONS.find((option) => option.value === form.credentialType) ??
-    CREDENTIAL_TYPE_OPTIONS[0]
   const derivedRole = memberRoleFromAccountRole(form.holderAccountRole)
-  const isStudent = derivedRole === 'Student'
+  const derivedValues = getDerivedFieldValues(template, form.holderAccountRole)
+  const visibleFields = getVisibleTemplateFields(template, form.fieldValues, form.holderAccountRole)
+  const selectedType =
+    credentialTypes.find((item) => item.type_id === form.credentialType) || template
 
   function handleFileInput(event) {
     const file = event.target.files?.[0] ?? null
@@ -86,6 +214,16 @@ export function IssueCredentialForm({
           <div>
             <h3>{holderDidError ? 'Error: Holder DID not found' : 'Unable to issue credential'}</h3>
             <p>{globalError}</p>
+          </div>
+        </div>
+      )}
+
+      {typesError && (
+        <div className="issue-cred__banner issue-cred__banner--error" role="alert">
+          <MaterialIcon name="error" filled className="issue-cred__banner-icon" />
+          <div>
+            <h3>Unable to load credential types</h3>
+            <p>{typesError}</p>
           </div>
         </div>
       )}
@@ -134,305 +272,66 @@ export function IssueCredentialForm({
               />
             </div>
             {form.holderAccountRole && (
-              <p className="issue-cred__field-hint">
-                Wallet role: {form.holderAccountRole}
-              </p>
+              <p className="issue-cred__field-hint">Wallet role: {form.holderAccountRole}</p>
             )}
           </FormField>
 
-          <FormField id="credential-type" label="Credential Type" required>
+          <FormField
+            id="credential-type"
+            label="Credential Type"
+            required
+            error={fieldErrors.credentialType}
+          >
             <select
               id="credential-type"
               name="credentialType"
               className="issue-cred__input issue-cred__select"
               value={form.credentialType}
               onChange={onCredentialTypeChange}
-              disabled={loading}
+              disabled={loading || typesLoading || credentialTypes.length === 0}
             >
-              {CREDENTIAL_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {credentialTypes.length === 0 && <option value="">No types available</option>}
+              {credentialTypes.map((option) => (
+                <option key={option.type_id} value={option.type_id}>
+                  {option.display_name || option.type_id}
                 </option>
               ))}
             </select>
-            <p className="issue-cred__field-hint">{selectedType.description}</p>
+            {selectedType?.description && (
+              <p className="issue-cred__field-hint">{selectedType.description}</p>
+            )}
           </FormField>
         </div>
       </section>
 
       <section className="issue-cred__card">
         <SectionHeader icon="article" title="Credential Data (Subject)" />
-
-        <div className="issue-cred__subsection">
-          <h4 className="issue-cred__subsection-title">Personal Information</h4>
-          <div className="issue-cred__grid issue-cred__grid--3">
-            <FormField id="first-name" label="First Name" required error={fieldErrors.firstName}>
-              <input
-                id="first-name"
-                name="firstName"
-                type="text"
-                className={`issue-cred__input${fieldErrors.firstName ? ' issue-cred__input--error' : ''}`}
-                value={form.firstName}
-                onChange={onChange}
-                disabled={loading}
-              />
-            </FormField>
-            <FormField id="last-name" label="Last Name" required error={fieldErrors.lastName}>
-              <input
-                id="last-name"
-                name="lastName"
-                type="text"
-                className={`issue-cred__input${fieldErrors.lastName ? ' issue-cred__input--error' : ''}`}
-                value={form.lastName}
-                onChange={onChange}
-                disabled={loading}
-              />
-            </FormField>
-            <FormField id="national-id" label="National ID" required={form.credentialType === 'UniversityPIDCredential'} error={fieldErrors.nationalId}>
-              <input
-                id="national-id"
-                name="nationalId"
-                type="text"
-                className="issue-cred__input"
-                value={form.nationalId}
-                onChange={onChange}
-                disabled={loading}
-              />
-            </FormField>
-          </div>
-        </div>
-
-        <div className="issue-cred__subsection">
-          <h4 className="issue-cred__subsection-title">Academic Record</h4>
+        {typesLoading ? (
+          <p className="issue-cred__field-hint">Loading template fields…</p>
+        ) : visibleFields.length === 0 ? (
+          <p className="issue-cred__field-hint">Select a credential type to load its fields.</p>
+        ) : (
           <div className="issue-cred__grid issue-cred__grid--2">
-            <FormField id="university" label="University" className="issue-cred__field--span-2">
-              <input
-                id="university"
-                name="university"
-                type="text"
-                className="issue-cred__input issue-cred__input--readonly"
-                value={form.university}
-                readOnly
+            {visibleFields.map((field) => (
+              <DynamicTemplateField
+                key={field.key}
+                field={field}
+                value={
+                  field.data_type === 'derived'
+                    ? derivedValues[field.key]
+                    : form.fieldValues?.[field.key]
+                }
+                fileValue={form.fileFields?.[field.key]}
+                error={fieldErrors[field.key]}
+                derivedRole={derivedRole}
+                holderLookupLoading={holderLookupLoading}
+                holderAccountRole={form.holderAccountRole}
+                loading={loading}
+                onFieldChange={onFieldValueChange}
+                onFileFieldChange={onFileFieldChange}
+                onClearFileField={onClearFileField}
               />
-            </FormField>
-            <FormField id="faculty" label="Faculty" error={fieldErrors.faculty}>
-              <input
-                id="faculty"
-                name="faculty"
-                type="text"
-                className="issue-cred__input"
-                value={form.faculty}
-                onChange={onChange}
-                disabled={loading}
-              />
-            </FormField>
-            <FormField id="department" label="Department" className="issue-cred__field--span-2" error={fieldErrors.department}>
-              <input
-                id="department"
-                name="department"
-                type="text"
-                className="issue-cred__input"
-                value={form.department}
-                onChange={onChange}
-                disabled={loading}
-              />
-            </FormField>
-          </div>
-        </div>
-
-        {showsRoleSelector(form.credentialType) && (
-          <div className="issue-cred__subsection">
-            <h4 className="issue-cred__subsection-title">Affiliation</h4>
-            <div className="issue-cred__grid issue-cred__grid--2">
-              <FormField
-                id="role"
-                label="Member Role"
-                error={fieldErrors.role}
-              >
-                <div className={`issue-cred__input-wrap${fieldErrors.role ? ' issue-cred__input-wrap--error' : ''}`}>
-                  <input
-                    id="role"
-                    name="role"
-                    type="text"
-                    className={`issue-cred__input issue-cred__input--locked${fieldErrors.role ? ' issue-cred__input--error' : ''}`}
-                    value={
-                      derivedRole ||
-                      (holderLookupLoading
-                        ? 'Resolving from DID…'
-                        : form.holderAccountRole
-                          ? `Unsupported account role: ${form.holderAccountRole}`
-                          : 'Resolved from holder DID')
-                    }
-                    readOnly
-                    disabled
-                    aria-readonly="true"
-                  />
-                  <MaterialIcon name="lock" size={18} className="issue-cred__lock-icon" />
-                </div>
-                <p className="issue-cred__field-hint">
-                  Locked to the wallet account role linked to this DID. It cannot be changed manually.
-                </p>
-              </FormField>
-            </div>
-          </div>
-        )}
-
-        {showsEnrollmentSection(form.credentialType) && (
-          <div className="issue-cred__subsection">
-            <h4 className="issue-cred__subsection-title">
-              {isStudent ? 'Student Enrollment' : 'Teacher Employment'}
-            </h4>
-            <div className="issue-cred__grid issue-cred__grid--4">
-              {isStudent ? (
-                <>
-                  <FormField id="degree-level" label="Degree Level">
-                    <select
-                      id="degree-level"
-                      name="degreeLevel"
-                      className="issue-cred__input issue-cred__select"
-                      value={form.degreeLevel}
-                      onChange={onSelectChange}
-                      disabled={loading}
-                    >
-                      {DEGREE_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                  <FormField id="enrollment-year" label="Enrollment Year" error={fieldErrors.enrollmentYear}>
-                    <input
-                      id="enrollment-year"
-                      name="enrollmentYear"
-                      type="number"
-                      min="1950"
-                      max="2050"
-                      className={`issue-cred__input${fieldErrors.enrollmentYear ? ' issue-cred__input--error' : ''}`}
-                      value={form.enrollmentYear}
-                      onChange={onChange}
-                      disabled={loading}
-                    />
-                  </FormField>
-                  <FormField id="current-term" label="Current Term" error={fieldErrors.currentTerm}>
-                    <input
-                      id="current-term"
-                      name="currentTerm"
-                      type="number"
-                      min="1"
-                      max="12"
-                      className={`issue-cred__input${fieldErrors.currentTerm ? ' issue-cred__input--error' : ''}`}
-                      value={form.currentTerm}
-                      onChange={onChange}
-                      disabled={loading}
-                    />
-                  </FormField>
-                </>
-              ) : (
-                <>
-                  <FormField id="academic-rank" label="Academic Rank">
-                    <select
-                      id="academic-rank"
-                      name="academicRank"
-                      className="issue-cred__input issue-cred__select"
-                      value={form.academicRank}
-                      onChange={onSelectChange}
-                      disabled={loading}
-                    >
-                      {TEACHER_RANK_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                  <FormField id="employment-year" label="Employment Start Year" error={fieldErrors.employmentYear}>
-                    <input
-                      id="employment-year"
-                      name="employmentYear"
-                      type="number"
-                      min="1950"
-                      max="2050"
-                      className={`issue-cred__input${fieldErrors.employmentYear ? ' issue-cred__input--error' : ''}`}
-                      value={form.employmentYear}
-                      onChange={onChange}
-                      disabled={loading}
-                    />
-                  </FormField>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {showsCertificateSection(form.credentialType) && (
-          <div className="issue-cred__subsection">
-            <h4 className="issue-cred__subsection-title">Degree Details</h4>
-            <div className="issue-cred__grid issue-cred__grid--2">
-              <FormField id="program-name" label="Program Name" required error={fieldErrors.programName}>
-                <input
-                  id="program-name"
-                  name="programName"
-                  type="text"
-                  className={`issue-cred__input${fieldErrors.programName ? ' issue-cred__input--error' : ''}`}
-                  value={form.programName}
-                  onChange={onChange}
-                  disabled={loading}
-                  placeholder="e.g. Computer Engineering"
-                />
-              </FormField>
-              <FormField id="degree-level-cert" label="Degree Level">
-                <select
-                  id="degree-level-cert"
-                  name="degreeLevel"
-                  className="issue-cred__input issue-cred__select"
-                  value={form.degreeLevel}
-                  onChange={onSelectChange}
-                  disabled={loading}
-                >
-                  {DEGREE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField id="graduation-date" label="Graduation Date" required error={fieldErrors.graduationDate}>
-                <input
-                  id="graduation-date"
-                  name="graduationDate"
-                  type="date"
-                  className={`issue-cred__input${fieldErrors.graduationDate ? ' issue-cred__input--error' : ''}`}
-                  value={form.graduationDate}
-                  onChange={onChange}
-                  disabled={loading}
-                />
-              </FormField>
-              <FormField id="gpa" label="GPA (optional)" error={fieldErrors.gpa}>
-                <input
-                  id="gpa"
-                  name="gpa"
-                  type="text"
-                  className="issue-cred__input"
-                  value={form.gpa}
-                  onChange={onChange}
-                  disabled={loading}
-                  placeholder="e.g. 17.85"
-                />
-              </FormField>
-              <FormField id="honors" label="Honors (optional)" className="issue-cred__field--span-2" error={fieldErrors.honors}>
-                <input
-                  id="honors"
-                  name="honors"
-                  type="text"
-                  className="issue-cred__input"
-                  value={form.honors}
-                  onChange={onChange}
-                  disabled={loading}
-                  placeholder="e.g. First Class Honors"
-                />
-              </FormField>
-            </div>
+            ))}
           </div>
         )}
       </section>
@@ -498,7 +397,7 @@ export function IssueCredentialForm({
         >
           Cancel
         </button>
-        <button type="submit" className="issue-cred__btn issue-cred__btn--primary" disabled={loading}>
+        <button type="submit" className="issue-cred__btn issue-cred__btn--primary" disabled={loading || typesLoading}>
           <MaterialIcon name="send" size={20} />
           {loading ? 'Issuing…' : 'Issue Credential'}
         </button>
@@ -576,7 +475,14 @@ function IpfsLinkRow({ label, uri, gatewayUrl, icon = 'folder_zip' }) {
   )
 }
 
-export function IssueCredentialSuccess({ result, jsonExpanded, onToggleJson, onViewRegistry, onIssueAnother }) {
+export function IssueCredentialSuccess({
+  result,
+  credentialTypes = [],
+  jsonExpanded,
+  onToggleJson,
+  onViewRegistry,
+  onIssueAnother,
+}) {
   const credential = result?.credential
 
   return (
@@ -614,6 +520,7 @@ export function IssueCredentialSuccess({ result, jsonExpanded, onToggleJson, onV
               Array.isArray(credential?.type)
                 ? credential.type[credential.type.length - 1]
                 : credential?.type,
+              credentialTypes,
             )}
           />
           <CopyableValue label="Account Username" value={credential?.credentialSubject?.username} />
@@ -662,7 +569,9 @@ export function IssueCredentialSuccess({ result, jsonExpanded, onToggleJson, onV
                 type="button"
                 className="issue-cred__btn issue-cred__btn--secondary"
                 onClick={() => {
-                  const blob = new Blob([JSON.stringify(credential, null, 2)], { type: 'application/json' })
+                  const blob = new Blob([JSON.stringify(credential, null, 2)], {
+                    type: 'application/json',
+                  })
                   const url = URL.createObjectURL(blob)
                   const link = document.createElement('a')
                   link.href = url

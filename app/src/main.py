@@ -11,6 +11,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.src.auth.router import router as auth_router
 from app.src.did.router import router as did_router
 from app.src.credential.router import router as cred_router
+from app.src.credential_type.router import router as credential_type_router
 from app.src.trust.router import router as trust_router
 from app.src.common.messaging import event_bus
 from app.src.did.events import handle_user_created, handle_did_created
@@ -71,6 +72,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(did_router)
 app.include_router(cred_router)
+app.include_router(credential_type_router)
 app.include_router(trust_router)
 
 app.add_exception_handler(HTTPException, http_exception_handler)

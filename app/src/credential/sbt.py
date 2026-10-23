@@ -36,11 +36,15 @@ class CertificateSBTService:
         holder_address: str,
         credential_id: str,
         credential_hash: str,
+        type_id: str,
         issuer: str,
         token_uri: str = "",
     ) -> dict[str, Any]:
+        from app.src.credential_type.repository import type_id_hash
+
         credential_id_hash = credential_id_hash_from_string(credential_id)
         cred_hash = _to_bytes32(credential_hash)
+        type_hash = type_id_hash(type_id)
         to_address = Web3.to_checksum_address(holder_address)
         issuer_address = Web3.to_checksum_address(issuer)
 
@@ -59,6 +63,7 @@ class CertificateSBTService:
                 to_address,
                 credential_id_hash,
                 cred_hash,
+                type_hash,
                 issuer_address,
                 token_uri or "",
             )
@@ -91,6 +96,7 @@ class CertificateSBTService:
                 token_id,
                 token_owner,
                 cred_hash,
+                type_hash,
                 issuer,
                 minted_at,
                 revoked_at,
@@ -107,6 +113,7 @@ class CertificateSBTService:
             "token_id": int(token_id),
             "owner": token_owner,
             "credential_hash": Web3.to_hex(cred_hash),
+            "type_id_hash": Web3.to_hex(type_hash),
             "issuer": issuer,
             "minted_at": int(minted_at),
             "revoked_at": int(revoked_at),

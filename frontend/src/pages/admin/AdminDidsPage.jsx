@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { deactivateDidOnChain, getDidOnChainStatus, resolveDid } from '@/api/dids'
+import { getDidOnChainStatus, resolveDid } from '@/api/dids'
 import { ApiError } from '@/api/client'
 import {
   DidIdleState,
@@ -8,16 +8,14 @@ import {
 import {
   DidActiveDetails,
   DidActiveDetailsMobile,
-  DidDeactivatedDetails,
   DidJsonModal,
   DidResolveError,
-  DidSuccessBanner,
 } from '@/components/admin/DidManagementViews'
 import { isResolutionFound } from '@/utils/didFormat'
 
 /**
  * Admin DID Management page.
- * Endpoints: GET /dids/{did}, GET /dids/on-chain/status, POST /dids/on-chain/deactivate
+ * Endpoints: GET /dids/{did}, GET /dids/on-chain/status
  */
 export function AdminDidsPage() {
   const [query, setQuery] = useState('')
@@ -28,17 +26,9 @@ export function AdminDidsPage() {
   const [resolveError, setResolveError] = useState(null)
   const [jsonExpanded, setJsonExpanded] = useState(false)
   const [jsonModalOpen, setJsonModalOpen] = useState(false)
-  const [deactivating, setDeactivating] = useState(false)
-  const [deactivateError, setDeactivateError] = useState(null)
-  const [deactivateResult, setDeactivateResult] = useState(null)
-  const [showSuccessBanner, setShowSuccessBanner] = useState(false)
+  const [chainError, setChainError] = useState(null)
 
   const resolvedDid = resolution?.didDocument?.id || query.trim()
-
-  const isDeactivated =
-    Boolean(deactivateResult) ||
-    resolution?.didDocumentMetadata?.deactivated === true ||
-    (onChain != null && onChain.active === false)
 
   useEffect(() => {
     document.title = 'FUM Wallet - DID Management'
@@ -71,9 +61,7 @@ export function AdminDidsPage() {
 
     setPhase('loading')
     setResolveError(null)
-    setDeactivateError(null)
-    setDeactivateResult(null)
-    setShowSuccessBanner(false)
+    setChainError(null)
     setJsonExpanded(false)
     setOnChain(null)
     setOnChainMissing(false)
@@ -97,40 +85,13 @@ export function AdminDidsPage() {
         setOnChain(null)
         setOnChainMissing(false)
         if (chainErr instanceof ApiError) {
-          setDeactivateError(chainErr.message)
+          setChainError(chainErr.message)
         }
       }
     } catch (err) {
       setPhase('error')
       setResolution(null)
       setResolveError(err instanceof ApiError ? err.message : 'Failed to resolve DID.')
-    }
-  }
-
-  async function handleDeactivate() {
-    const did = resolvedDid
-    if (!did || deactivating) return
-
-    setDeactivating(true)
-    setDeactivateError(null)
-
-    try {
-      const result = await deactivateDidOnChain(did)
-      setDeactivateResult(result)
-      setShowSuccessBanner(true)
-
-      const [freshResolution] = await Promise.all([
-        resolveDid(did).catch(() => resolution),
-        fetchOnChainStatus(did).catch(() => null),
-      ])
-
-      if (freshResolution && isResolutionFound(freshResolution)) {
-        setResolution(freshResolution)
-      }
-    } catch (err) {
-      setDeactivateError(err instanceof ApiError ? err.message : 'Failed to deactivate DID on-chain.')
-    } finally {
-      setDeactivating(false)
     }
   }
 
@@ -184,53 +145,29 @@ export function AdminDidsPage() {
             compact
           />
 
-          {showSuccessBanner && deactivateResult && (
-            <DidSuccessBanner
-              txHash={deactivateResult.tx_hash}
-              blockNumber={deactivateResult.block_number}
-              onDismiss={() => setShowSuccessBanner(false)}
-            />
-          )}
-
-          {isDeactivated ? (
-            <DidDeactivatedDetails
+          <div className="did-mgmt__desktop-only">
+            <DidActiveDetails
               did={resolvedDid}
               resolution={resolution}
               onChain={onChain}
-              deactivateError={deactivateError}
-              onDismissError={() => setDeactivateError(null)}
+              onChainMissing={onChainMissing}
+              jsonExpanded={jsonExpanded}
+              onToggleJson={() => setJsonExpanded((v) => !v)}
             />
-          ) : (
-            <>
-              <div className="did-mgmt__desktop-only">
-                <DidActiveDetails
-                  did={resolvedDid}
-                  resolution={resolution}
-                  onChain={onChain}
-                  onChainMissing={onChainMissing}
-                  jsonExpanded={jsonExpanded}
-                  onToggleJson={() => setJsonExpanded((v) => !v)}
-                  onDeactivate={handleDeactivate}
-                  deactivating={deactivating}
-                />
-              </div>
-              <div className="did-mgmt__mobile-only">
-                <DidActiveDetailsMobile
-                  did={resolvedDid}
-                  resolution={resolution}
-                  onChain={onChain}
-                  onChainMissing={onChainMissing}
-                  onDeactivate={handleDeactivate}
-                  deactivating={deactivating}
-                  onViewJson={() => setJsonModalOpen(true)}
-                />
-              </div>
-            </>
-          )}
+          </div>
+          <div className="did-mgmt__mobile-only">
+            <DidActiveDetailsMobile
+              did={resolvedDid}
+              resolution={resolution}
+              onChain={onChain}
+              onChainMissing={onChainMissing}
+              onViewJson={() => setJsonModalOpen(true)}
+            />
+          </div>
 
-          {deactivateError && !isDeactivated && (
+          {chainError && (
             <div className="did-mgmt__inline-error did-mgmt__inline-error--floating" role="alert">
-              <span>{deactivateError}</span>
+              <span>{chainError}</span>
             </div>
           )}
         </>

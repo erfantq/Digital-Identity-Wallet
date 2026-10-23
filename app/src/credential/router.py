@@ -21,7 +21,11 @@ from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
 )
-from .enums import CredentialStatus, CredentialType, normalize_credential_type
+from .enums import CredentialStatus, normalize_credential_type
+from app.src.credential_type.repository import (
+    get_credential_type,
+    validate_credential_data_against_template,
+)
 from app.src.auth.repository import get_user_by_username
 from app.src.did.repository import check_did_exists, get_did_doc_by_user_id, get_did_by_string, get_user_id_for_did
 from app.src.auth.repository import get_user_by_id
@@ -50,7 +54,7 @@ router = APIRouter(
 )
 
 
-def _serialize_credential_list_item(credential) -> dict:
+def _serialize_credential_list_item(credential, revocable: bool | None = None) -> dict:
     parsed = json.loads(credential.credential)
     attached_document = (parsed.get("credentialSubject") or {}).get("attachedDocument")
     status = (
@@ -58,12 +62,14 @@ def _serialize_credential_list_item(credential) -> dict:
         if hasattr(credential.status, "value")
         else credential.status
     )
+    credential_type = normalize_credential_type(credential.type)
 
     return {
         "credential_id": credential.credential_id,
         "issuer": credential.issuer,
         "holder_did": credential.holder_did,
-        "type": normalize_credential_type(credential.type),
+        "type": credential_type,
+        "revocable": revocable,
         "status": status,
         "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
         "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
@@ -80,6 +86,16 @@ def _serialize_credential_list_item(credential) -> dict:
         "updated_at": credential.updated_at.isoformat() if credential.updated_at else None,
         "credential": parsed,
     }
+
+
+def _revocable_map(db: Session, type_ids: set[str]) -> dict[str, bool]:
+    result: dict[str, bool] = {}
+    for type_id in type_ids:
+        template = get_credential_type(db, type_id)
+        if template is not None:
+            result[type_id] = bool(template.revocable)
+    return result
+
 
 # ok
 @router.post("/verify", tags=["credentials"])
@@ -246,28 +262,42 @@ async def issue_credential(
         credential_id = f"urn:uuid:{uuid.uuid4()}"
         issued_at = datetime.now(timezone.utc).isoformat()
 
-        credential_type = (
-            cred.type.value
-            if isinstance(cred.type, CredentialType)
-            else CredentialType.UNIVERSITY_PID.value
+        credential_type = normalize_credential_type(cred.type)
+        template = get_credential_type(db, credential_type)
+        if not template:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown credential type: {credential_type}",
+            )
+
+        holder_role = (
+            holder_user.role.value
+            if hasattr(holder_user.role, "value")
+            else str(holder_user.role)
         )
 
+        try:
+            validated_data = validate_credential_data_against_template(
+                template.fields or [],
+                cred.credential_data,
+                holder_account_role=holder_role,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            )
+
         credential_subject = {
-            **cred.credential_data,
+            **validated_data,
             "id": cred.holder_did,
             "username": holder_user.username,
         }
-        credential_subject.pop("studentId", None)
 
         # If the request includes a member role, it must match the holder account
         # linked to this DID (prevents inspect/devtools role spoofing).
         requested_role = credential_subject.get("role")
         if requested_role is not None and str(requested_role).strip() != "":
-            holder_role = (
-                holder_user.role.value
-                if hasattr(holder_user.role, "value")
-                else str(holder_user.role)
-            )
             if str(requested_role).strip().lower() != str(holder_role).strip().lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -430,10 +460,21 @@ async def list_auth_user_credentials(
             page_size=page_size,
         )
 
+        type_ids = {
+            normalize_credential_type(credential.type)
+            for credential in paginated["items"]
+        }
+        revocable_by_type = _revocable_map(db, type_ids)
+
         return success_response(
             data={
                 "items": [
-                    _serialize_credential_list_item(credential)
+                    _serialize_credential_list_item(
+                        credential,
+                        revocable=revocable_by_type.get(
+                            normalize_credential_type(credential.type)
+                        ),
+                    )
                     for credential in paginated["items"]
                 ],
                 "pagination": paginated["pagination"],
@@ -487,10 +528,21 @@ async def list_credentials_by_username(
             page_size=page_size,
         )
 
+        type_ids = {
+            normalize_credential_type(credential.type)
+            for credential in paginated["items"]
+        }
+        revocable_by_type = _revocable_map(db, type_ids)
+
         return success_response(
             data={
                 "items": [
-                    _serialize_credential_list_item(credential)
+                    _serialize_credential_list_item(
+                        credential,
+                        revocable=revocable_by_type.get(
+                            normalize_credential_type(credential.type)
+                        ),
+                    )
                     for credential in paginated["items"]
                 ],
                 "pagination": paginated["pagination"],
@@ -568,12 +620,16 @@ async def get_credential(credential_id: str, db: Session = Depends(get_db)):
             detail="Credential not found",
         )
 
+    credential_type = normalize_credential_type(credential.type)
+    template = get_credential_type(db, credential_type)
+
     return success_response(
         data={
             "credential_id": credential.credential_id,
             "issuer": credential.issuer,
             "holder_did": credential.holder_did,
-            "type": normalize_credential_type(credential.type),
+            "type": credential_type,
+            "revocable": bool(template.revocable) if template else None,
             "status": credential.status,
             "revoked_at": credential.revoked_at.isoformat() if credential.revoked_at else None,
             "revoke_reason": credential.revoke_reason if credential.revoke_reason else None,
@@ -617,6 +673,17 @@ async def revoke_credential(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Credential is already revoked",
+        )
+
+    credential_type = normalize_credential_type(credential.type)
+    template = get_credential_type(db, credential_type)
+    if template is not None and not template.revocable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Credential type '{credential_type}' is not revocable "
+                "and cannot be revoked"
+            ),
         )
 
     revoked_at = datetime.now(timezone.utc)

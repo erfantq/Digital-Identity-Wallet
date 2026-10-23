@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 
 describe("CertificateSBT", function () {
   let sbt;
+  let typeRegistry;
   let owner;
   let holder;
   let issuer;
@@ -10,9 +11,14 @@ describe("CertificateSBT", function () {
 
   const credentialId = "urn:uuid:550e8400-e29b-41d4-a716-446655440000";
   const tokenURI = "ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
+  const revocableTypeId = "UniversityEnrollmentCredential";
+  const nonRevocableTypeId = "UniversityCertificateCredential";
 
   let credentialIdHash;
   let credentialHash;
+  let revocableTypeIdHash;
+  let nonRevocableTypeIdHash;
+  let schemaHash;
 
   beforeEach(async function () {
     [owner, holder, issuer, other] = await ethers.getSigners();
@@ -21,19 +27,41 @@ describe("CertificateSBT", function () {
     credentialHash = ethers.keccak256(
       ethers.toUtf8Bytes('{"id":"urn:uuid:550e8400-e29b-41d4-a716-446655440000"}')
     );
+    revocableTypeIdHash = ethers.keccak256(ethers.toUtf8Bytes(revocableTypeId));
+    nonRevocableTypeIdHash = ethers.keccak256(
+      ethers.toUtf8Bytes(nonRevocableTypeId)
+    );
+    schemaHash = ethers.keccak256(ethers.toUtf8Bytes("[]"));
+
+    const typeFactory = await ethers.getContractFactory("CredentialTypeRegistry");
+    typeRegistry = await typeFactory.deploy(owner.address);
+    await typeRegistry.waitForDeployment();
+
+    await typeRegistry
+      .connect(owner)
+      .registerCredentialType(revocableTypeIdHash, true, schemaHash);
+    await typeRegistry
+      .connect(owner)
+      .registerCredentialType(nonRevocableTypeIdHash, false, schemaHash);
 
     const factory = await ethers.getContractFactory("CertificateSBT");
-    sbt = await factory.deploy(owner.address, "UniversityCertificate", "UNICERT");
+    sbt = await factory.deploy(
+      owner.address,
+      await typeRegistry.getAddress(),
+      "UniversityCertificate",
+      "UNICERT"
+    );
     await sbt.waitForDeployment();
   });
 
-  async function mintDefault() {
+  async function mintDefault(typeIdHash = revocableTypeIdHash) {
     return sbt
       .connect(owner)
       .mintCertificate(
         holder.address,
         credentialIdHash,
         credentialHash,
+        typeIdHash,
         issuer.address,
         tokenURI
       );
@@ -45,10 +73,24 @@ describe("CertificateSBT", function () {
     expect(await sbt.symbol()).to.equal("UNICERT");
   });
 
-  it("rejects zero admin in constructor", async function () {
+  it("rejects zero admin or type registry in constructor", async function () {
     const factory = await ethers.getContractFactory("CertificateSBT");
     await expect(
-      factory.deploy(ethers.ZeroAddress, "UniversityCertificate", "UNICERT")
+      factory.deploy(
+        ethers.ZeroAddress,
+        await typeRegistry.getAddress(),
+        "UniversityCertificate",
+        "UNICERT"
+      )
+    ).to.be.revertedWithCustomError(factory, "ZeroAddress");
+
+    await expect(
+      factory.deploy(
+        owner.address,
+        ethers.ZeroAddress,
+        "UniversityCertificate",
+        "UNICERT"
+      )
     ).to.be.revertedWithCustomError(factory, "ZeroAddress");
   });
 
@@ -72,6 +114,7 @@ describe("CertificateSBT", function () {
     expect(cert.tokenId).to.equal(1n);
     expect(cert.tokenOwner).to.equal(holder.address);
     expect(cert.credentialHash).to.equal(credentialHash);
+    expect(cert.typeIdHash).to.equal(revocableTypeIdHash);
     expect(cert.issuer).to.equal(issuer.address);
     expect(cert.mintedAt).to.be.greaterThan(0n);
     expect(cert.revokedAt).to.equal(0n);
@@ -87,7 +130,7 @@ describe("CertificateSBT", function () {
       .withArgs(credentialIdHash);
   });
 
-  it("revokes a minted certificate without transferring it", async function () {
+  it("revokes a minted revocable certificate without transferring it", async function () {
     await mintDefault();
 
     await expect(sbt.connect(owner).revokeCertificate(credentialIdHash))
@@ -99,6 +142,14 @@ describe("CertificateSBT", function () {
 
     const cert = await sbt.getCertificate(credentialIdHash);
     expect(cert.revokedAt).to.be.greaterThan(0n);
+  });
+
+  it("rejects revoke for non-revocable credential type", async function () {
+    await mintDefault(nonRevocableTypeIdHash);
+
+    await expect(sbt.connect(owner).revokeCertificate(credentialIdHash))
+      .to.be.revertedWithCustomError(sbt, "CredentialTypeNotRevocable")
+      .withArgs(nonRevocableTypeIdHash);
   });
 
   it("rejects transferring or approving the soulbound token", async function () {
@@ -135,6 +186,7 @@ describe("CertificateSBT", function () {
           holder.address,
           credentialIdHash,
           credentialHash,
+          revocableTypeIdHash,
           issuer.address,
           tokenURI
         )
@@ -155,6 +207,7 @@ describe("CertificateSBT", function () {
           ethers.ZeroAddress,
           credentialIdHash,
           credentialHash,
+          revocableTypeIdHash,
           issuer.address,
           tokenURI
         )
@@ -167,6 +220,7 @@ describe("CertificateSBT", function () {
           holder.address,
           ethers.ZeroHash,
           credentialHash,
+          revocableTypeIdHash,
           issuer.address,
           tokenURI
         )
@@ -179,6 +233,7 @@ describe("CertificateSBT", function () {
           holder.address,
           credentialIdHash,
           credentialHash,
+          revocableTypeIdHash,
           issuer.address,
           ""
         )

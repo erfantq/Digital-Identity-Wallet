@@ -279,7 +279,6 @@ def resolve_did_service(
         )
 
     resolution_error = None
-    deactivated = None
 
     try:
         from app.src.did.registry import get_did_registry
@@ -288,7 +287,6 @@ def resolve_did_service(
         if settings.check_did_on_chain_resolve and settings.did_registry_address:
             registry = get_did_registry()
             on_chain = registry.get_did_record(did)
-            deactivated = not on_chain["active"]
 
             local_hash = _normalize_document_hash(did_record.document_hash)
             chain_hash = _normalize_document_hash(on_chain["document_hash"])
@@ -306,7 +304,6 @@ def resolve_did_service(
     document_metadata = DIDDocumentMetadata(
         created=did_record.created_at.isoformat() if did_record.created_at else None,
         updated=did_record.updated_at.isoformat() if did_record.updated_at else None,
-        deactivated=deactivated,
     )
 
     return DIDResolution(

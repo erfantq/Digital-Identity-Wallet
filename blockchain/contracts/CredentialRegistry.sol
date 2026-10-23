@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+interface ICredentialTypeRegistry {
+    function typeExists(bytes32 typeIdHash) external view returns (bool);
+    function isRevocable(bytes32 typeIdHash) external view returns (bool);
+}
+
 /**
  * @title CredentialRegistry
  * @notice On-chain anchor and revocation status for verifiable credentials.
@@ -15,13 +20,16 @@ pragma solidity ^0.8.27;
  *         e.g. credentialId = "urn:uuid:..."
  *
  * revokedAt == 0 means active; reasonCode 0 means unspecified (text stays off-chain).
+ * Revocation is allowed only when the credential's type is marked revocable.
  */
 contract CredentialRegistry {
     address public owner;
+    ICredentialTypeRegistry public immutable typeRegistry;
 
     struct CredentialRecord {
         bytes32 credentialHash;
         bytes32 holderDidHash;
+        bytes32 typeIdHash;
         uint64 issuedAt;
         uint64 revokedAt;
         uint32 reasonCode;
@@ -34,7 +42,8 @@ contract CredentialRegistry {
         bytes32 indexed credentialIdHash,
         bytes32 credentialHash,
         address indexed issuer,
-        bytes32 holderDidHash
+        bytes32 holderDidHash,
+        bytes32 typeIdHash
     );
 
     event CredentialRevoked(
@@ -49,26 +58,35 @@ contract CredentialRegistry {
     error CredentialAlreadyRegistered(bytes32 credentialIdHash);
     error CredentialNotFound(bytes32 credentialIdHash);
     error CredentialAlreadyRevoked(bytes32 credentialIdHash);
+    error CredentialTypeUnknown(bytes32 typeIdHash);
+    error CredentialTypeNotRevocable(bytes32 typeIdHash);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
         _;
     }
 
-    constructor(address admin) {
+    constructor(address admin, address typeRegistry_) {
         if (admin == address(0)) revert ZeroAddress();
+        if (typeRegistry_ == address(0)) revert ZeroAddress();
         owner = admin;
+        typeRegistry = ICredentialTypeRegistry(typeRegistry_);
     }
 
     function registerCredential(
         bytes32 credentialIdHash,
         bytes32 credentialHash,
         address issuer,
-        bytes32 holderDidHash
+        bytes32 holderDidHash,
+        bytes32 typeIdHash
     ) external onlyOwner {
         if (credentialIdHash == bytes32(0)) revert ZeroHash();
         if (credentialHash == bytes32(0)) revert ZeroHash();
+        if (typeIdHash == bytes32(0)) revert ZeroHash();
         if (issuer == address(0)) revert ZeroAddress();
+        if (!typeRegistry.typeExists(typeIdHash)) {
+            revert CredentialTypeUnknown(typeIdHash);
+        }
         if (_records[credentialIdHash].issuedAt != 0) {
             revert CredentialAlreadyRegistered(credentialIdHash);
         }
@@ -76,6 +94,7 @@ contract CredentialRegistry {
         _records[credentialIdHash] = CredentialRecord({
             credentialHash: credentialHash,
             holderDidHash: holderDidHash,
+            typeIdHash: typeIdHash,
             issuedAt: uint64(block.timestamp),
             revokedAt: 0,
             reasonCode: 0,
@@ -86,7 +105,8 @@ contract CredentialRegistry {
             credentialIdHash,
             credentialHash,
             issuer,
-            holderDidHash
+            holderDidHash,
+            typeIdHash
         );
     }
 
@@ -97,6 +117,9 @@ contract CredentialRegistry {
         CredentialRecord storage record = _records[credentialIdHash];
         if (record.issuedAt == 0) revert CredentialNotFound(credentialIdHash);
         if (record.revokedAt != 0) revert CredentialAlreadyRevoked(credentialIdHash);
+        if (!typeRegistry.isRevocable(record.typeIdHash)) {
+            revert CredentialTypeNotRevocable(record.typeIdHash);
+        }
 
         record.revokedAt = uint64(block.timestamp);
         record.reasonCode = reasonCode;
@@ -113,6 +136,7 @@ contract CredentialRegistry {
             bytes32 credentialHash,
             address issuer,
             bytes32 holderDidHash,
+            bytes32 typeIdHash,
             uint64 issuedAt,
             uint64 revokedAt,
             uint32 reasonCode
@@ -124,6 +148,7 @@ contract CredentialRegistry {
             record.credentialHash,
             record.issuer,
             record.holderDidHash,
+            record.typeIdHash,
             record.issuedAt,
             record.revokedAt,
             record.reasonCode

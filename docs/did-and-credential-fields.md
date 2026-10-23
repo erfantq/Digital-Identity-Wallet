@@ -45,7 +45,6 @@ A DID is a stable **identity identifier**. It is not the identity document itsel
 | `document_hash` | string | `keccak256` of the sorted Document JSON; used when anchoring on `DIDRegistry` |
 | `tx_hash` | string? | On-chain registration transaction hash |
 | `block_number` | int? | Block number of registration |
-| `active` | bool | Active flag in the DB cache (cleared on deactivate) |
 | `created_at` / `updated_at` | datetime | Created / last updated timestamps |
 
 ---
@@ -104,7 +103,6 @@ Besides the Document, metadata is returned:
 | Field | Meaning |
 |-------|---------|
 | `created` / `updated` | From the DB record |
-| `deactivated` | When on-chain checks are enabled: `true` if the registry marks the DID inactive |
 | `versionId` | Document version (usually empty in the current implementation) |
 
 ---

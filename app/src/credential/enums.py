@@ -7,28 +7,26 @@ class CredentialStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class CredentialType(str, Enum):
-    """University VC types accepted by issue API and admin UI."""
-
-    UNIVERSITY_PID = "UniversityPIDCredential"
-    UNIVERSITY_ENROLLMENT = "UniversityEnrollmentCredential"
-    UNIVERSITY_CERTIFICATE = "UniversityCertificateCredential"
-
-
-# Legacy `credentials.type` values written before strict validation.
+# Legacy helpers for older rows written before template registry.
 LEGACY_CREDENTIAL_TYPE_MAP = {
-    "UniversityCredential": CredentialType.UNIVERSITY_PID.value,
-    "VerifiableCredential": CredentialType.UNIVERSITY_PID.value,
+    "UniversityCredential": "UniversityPIDCredential",
+    "VerifiableCredential": "UniversityPIDCredential",
+}
+
+KNOWN_LEGACY_TYPES = {
+    "UniversityPIDCredential",
+    "UniversityEnrollmentCredential",
+    "UniversityCertificateCredential",
 }
 
 
 def normalize_credential_type(value: str | None) -> str:
-    """Map blank/legacy types to a valid university credential type."""
+    """Map blank/legacy types to a known type id string."""
     if value is None:
-        return CredentialType.UNIVERSITY_PID.value
+        return "UniversityPIDCredential"
     cleaned = str(value).strip()
     if not cleaned:
-        return CredentialType.UNIVERSITY_PID.value
-    if cleaned in {item.value for item in CredentialType}:
+        return "UniversityPIDCredential"
+    if cleaned in KNOWN_LEGACY_TYPES:
         return cleaned
-    return LEGACY_CREDENTIAL_TYPE_MAP.get(cleaned, CredentialType.UNIVERSITY_PID.value)
+    return LEGACY_CREDENTIAL_TYPE_MAP.get(cleaned, cleaned)

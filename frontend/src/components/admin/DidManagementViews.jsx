@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { MaterialIcon } from '@/components/landing/MaterialIcon'
 import {
   CopyButton,
@@ -39,33 +38,6 @@ function ExplorerAddressLink({ address }) {
       <MaterialIcon name="open_in_new" size={18} />
       View address in explorer
     </a>
-  )
-}
-
-export function DidSuccessBanner({ txHash, blockNumber, onDismiss }) {
-  return (
-    <div className="did-mgmt__success-banner" role="status">
-      <MaterialIcon name="check_circle" size={24} filled className="did-mgmt__success-icon" />
-      <div className="did-mgmt__success-body">
-        <h3>DID deactivated on-chain successfully</h3>
-        <div className="did-mgmt__success-meta">
-          <div className="did-mgmt__success-row">
-            <span className="did-mgmt__success-label">TX Hash:</span>
-            <span className="did-mgmt__success-value">{txHash}</span>
-            <CopyButton value={txHash} label="Copy transaction hash" />
-          </div>
-          <div className="did-mgmt__success-row">
-            <span className="did-mgmt__success-label">Block:</span>
-            <span className="did-mgmt__success-value">
-              {Number(blockNumber).toLocaleString('en-US')}
-            </span>
-          </div>
-        </div>
-      </div>
-      <button type="button" className="did-mgmt__success-dismiss" onClick={onDismiss} aria-label="Dismiss">
-        <MaterialIcon name="close" size={20} />
-      </button>
-    </div>
   )
 }
 
@@ -110,8 +82,6 @@ export function DidActiveDetails({
   onChainMissing,
   jsonExpanded,
   onToggleJson,
-  onDeactivate,
-  deactivating,
 }) {
   const doc = resolution?.didDocument
   const meta = resolution?.didDocumentMetadata || {}
@@ -184,10 +154,10 @@ export function DidActiveDetails({
                 <DidStatusBadge kind="pending" label="Not anchored" icon="hourglass_empty" />
               ) : !onChain ? (
                 <DidStatusBadge kind="pending" label="Loading" icon="hourglass_empty" />
-              ) : onChain.active ? (
-                <DidStatusBadge kind="active" label="Active" icon="link" />
-              ) : (
+              ) : onChain.active === false ? (
                 <DidStatusBadge kind="inactive" label="Inactive" icon="block" />
+              ) : (
+                <DidStatusBadge kind="active" label="Active" icon="link" />
               )}
             </div>
 
@@ -212,121 +182,6 @@ export function DidActiveDetails({
             )}
 
             <ExplorerAddressLink address={explorerAddress} />
-
-            <div className="did-mgmt__onchain-actions">
-              <p>Administrative actions for this decentralized identifier.</p>
-              <button
-                type="button"
-                className="did-mgmt__btn did-mgmt__btn--danger-outline"
-                onClick={onDeactivate}
-                disabled={deactivating || onChainMissing || !onChain?.active}
-              >
-                <MaterialIcon name="block" size={18} />
-                {deactivating ? 'Deactivating…' : 'Deactivate on-chain'}
-              </button>
-            </div>
-          </article>
-        </aside>
-      </div>
-    </div>
-  )
-}
-
-export function DidDeactivatedDetails({
-  did,
-  resolution,
-  onChain,
-  deactivateError,
-  onDismissError,
-}) {
-  const doc = resolution?.didDocument
-  const meta = resolution?.didDocumentMetadata
-  const controller = onChain?.controller || doc?.controller || truncateMiddle(did, 10, 5)
-  const jsonDoc = buildDidDocumentForDisplay(resolution)
-  const json = jsonDoc ? JSON.stringify(jsonDoc, null, 2) : '{}'
-  const explorerAddress = resolveExplorerAddress(did, onChain, doc)
-
-  return (
-    <div className="did-mgmt__details did-mgmt__details--deactivated">
-      <div className="did-mgmt__details-header">
-        <div>
-          <h2>DID Management</h2>
-          <p>Manage decentralized identifiers and their on-chain lifecycle.</p>
-        </div>
-      </div>
-
-      {deactivateError && (
-        <div className="did-mgmt__inline-error" role="alert">
-          <MaterialIcon name="error" size={20} />
-          <span>{deactivateError}</span>
-          <button type="button" onClick={onDismissError} aria-label="Dismiss error">
-            <MaterialIcon name="close" size={18} />
-          </button>
-        </div>
-      )}
-
-      <div className="did-mgmt__bento">
-        <article className="did-mgmt__card did-mgmt__bento-main did-mgmt__resolved-doc">
-          <div className="did-mgmt__resolved-doc-header">
-            <h3>Resolved DID Document</h3>
-            <DidStatusBadge kind="deactivated" label="Deactivated" />
-          </div>
-
-          <div className="did-mgmt__resolved-fields">
-            <div>
-              <label>Subject DID</label>
-              <div className="did-mgmt__mono-box">
-                <span className="did-mgmt__mono-value">{did}</span>
-                <CopyButton value={did} label="Copy DID" />
-              </div>
-            </div>
-
-            <div className="did-mgmt__resolved-meta-grid">
-              <div>
-                <label>Controller</label>
-                <div className="did-mgmt__mono-box">
-                  <span className="did-mgmt__mono-value">{truncateMiddle(String(controller), 10, 5)}</span>
-                </div>
-              </div>
-              <div>
-                <label>Created</label>
-                <div className="did-mgmt__mono-box">
-                  <span>{formatUtcDate(meta?.created)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label>Raw Document</label>
-              <div className="did-mgmt__raw-doc">
-                <pre>{json}</pre>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <aside className="did-mgmt__bento-side">
-          <article className="did-mgmt__card did-mgmt__registry-card">
-            <div className="did-mgmt__registry-icon-wrap">
-              <MaterialIcon name="block" size={32} filled />
-            </div>
-            <h4>Registry Status</h4>
-            <span className="did-mgmt__registry-pill">Inactive / Deactivated</span>
-            <div className="did-mgmt__registry-note">
-              <p>
-                This identifier has been revoked on the Ethereum registry. It can no longer be used to
-                issue or verify new credentials.
-              </p>
-              <div className="did-mgmt__registry-updated">
-                <MaterialIcon name="history" size={14} />
-                Last Updated: Just now
-              </div>
-            </div>
-            <ExplorerAddressLink address={explorerAddress} />
-            <button type="button" className="did-mgmt__btn did-mgmt__btn--disabled" disabled>
-              <MaterialIcon name="lock" size={18} />
-              Deactivate on-chain
-            </button>
           </article>
         </aside>
       </div>
@@ -340,8 +195,6 @@ export function DidActiveDetailsMobile({
   resolution,
   onChain,
   onChainMissing,
-  onDeactivate,
-  deactivating,
   onViewJson,
 }) {
   const doc = resolution?.didDocument
@@ -389,6 +242,8 @@ export function DidActiveDetailsMobile({
           </h3>
           {onChainMissing ? (
             <DidStatusBadge kind="pending" label="Not anchored" icon="hourglass_empty" />
+          ) : onChain?.active === false ? (
+            <DidStatusBadge kind="inactive" label="Inactive" icon="block" />
           ) : (
             <DidStatusBadge kind="active" label="Active" icon="trip_origin" />
           )}
@@ -406,15 +261,6 @@ export function DidActiveDetailsMobile({
           </div>
         )}
         <ExplorerAddressLink address={explorerAddress} />
-        <button
-          type="button"
-          className="did-mgmt__btn did-mgmt__btn--danger-outline did-mgmt__btn--block"
-          onClick={onDeactivate}
-          disabled={deactivating || onChainMissing || !onChain?.active}
-        >
-          <MaterialIcon name="block" size={18} />
-          {deactivating ? 'Deactivating…' : 'Deactivate on-chain'}
-        </button>
       </article>
 
       <button type="button" className="did-mgmt__btn did-mgmt__btn--primary did-mgmt__btn--block" onClick={onViewJson}>

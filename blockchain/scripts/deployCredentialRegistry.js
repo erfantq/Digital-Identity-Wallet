@@ -9,12 +9,34 @@ async function main() {
     process.env.DID_REGISTRY_ADMIN ||
     deployer.address;
 
+  const network = await ethers.provider.getNetwork();
+  const chainId = Number(network.chainId);
+
+  let typeRegistryAddress = process.env.CREDENTIAL_TYPE_REGISTRY_ADDRESS;
+  if (!typeRegistryAddress) {
+    const typeArtifactPath = path.join(
+      __dirname,
+      "..",
+      "deployments",
+      `CredentialTypeRegistry-${chainId}.json`
+    );
+    if (!fs.existsSync(typeArtifactPath)) {
+      throw new Error(
+        "CREDENTIAL_TYPE_REGISTRY_ADDRESS is required (or deploy CredentialTypeRegistry first)"
+      );
+    }
+    typeRegistryAddress = JSON.parse(
+      fs.readFileSync(typeArtifactPath, "utf8")
+    ).address;
+  }
+
   console.log("Deploying CredentialRegistry");
   console.log("  network RPC signer:", deployer.address);
   console.log("  registry admin:", admin);
+  console.log("  type registry:", typeRegistryAddress);
 
   const factory = await ethers.getContractFactory("CredentialRegistry");
-  const registry = await factory.deploy(admin);
+  const registry = await factory.deploy(admin, typeRegistryAddress);
   await registry.waitForDeployment();
 
   const address = await registry.getAddress();
@@ -28,13 +50,13 @@ async function main() {
   const deploymentsDir = path.join(__dirname, "..", "deployments");
   fs.mkdirSync(deploymentsDir, { recursive: true });
 
-  const network = await ethers.provider.getNetwork();
   const artifact = {
     contract: "CredentialRegistry",
     address,
     admin,
+    typeRegistry: typeRegistryAddress,
     deployer: deployer.address,
-    chainId: Number(network.chainId),
+    chainId,
     deployedAt: new Date().toISOString(),
     txHash: deployTx ? deployTx.hash : null,
   };

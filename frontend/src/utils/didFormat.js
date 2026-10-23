@@ -65,28 +65,12 @@ export function buildDidDocumentForDisplay(resolution) {
 
 export function isResolutionFound(resolution) {
   if (!resolution?.didDocument?.id) return false
-  if (resolution.didDocumentMetadata?.deactivated === true) return true
   return !resolution?.didResolutionMetadata?.error
 }
 
 /** Health badge + alert for wallet / resolve DID UIs. */
 export function deriveDidHealth(resolution, onChainStatus = null) {
   const error = resolution?.didResolutionMetadata?.error
-  const deactivated =
-    resolution?.didDocumentMetadata?.deactivated === true ||
-    onChainStatus?.active === false ||
-    error === 'DID is deactivated on-chain'
-
-  if (deactivated) {
-    return {
-      key: 'deactivated',
-      label: 'Deactivated',
-      icon: 'cancel',
-      badgeKind: 'inactive',
-      alert: error || 'This DID is deactivated on-chain.',
-      alertTone: 'error',
-    }
-  }
 
   if (error === 'DID not found') {
     return {
@@ -106,6 +90,17 @@ export function deriveDidHealth(resolution, onChainStatus = null) {
       icon: 'warning',
       badgeKind: 'pending',
       alert: error,
+      alertTone: 'warning',
+    }
+  }
+
+  if (onChainStatus?.active === false) {
+    return {
+      key: 'inactive',
+      label: 'Inactive',
+      icon: 'link_off',
+      badgeKind: 'inactive',
+      alert: 'On-chain registry marks this DID as inactive.',
       alertTone: 'warning',
     }
   }

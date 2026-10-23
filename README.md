@@ -174,6 +174,7 @@ npm run compile
 
 npm run deploy:besu              # TrustedEntityRegistry
 npm run deploy:did:besu          # DIDRegistry
+npm run deploy:credential-type:besu      # CredentialTypeRegistry
 npm run deploy:credential:besu   # CredentialRegistry
 npm run deploy:sbt:besu          # CertificateSBT
 cd ..
@@ -183,6 +184,7 @@ Each script prints the contract address and writes:
 
 - `blockchain/deployments/TrustedEntityRegistry-1337.json`
 - `blockchain/deployments/DIDRegistry-1337.json`
+- `blockchain/deployments/CredentialTypeRegistry-1337.json`
 - `blockchain/deployments/CredentialRegistry-1337.json`
 - `blockchain/deployments/CertificateSBT-1337.json`
 

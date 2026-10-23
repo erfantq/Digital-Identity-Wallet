@@ -125,7 +125,6 @@ export function AdminDashboard({ data, username, onRefresh, loading }) {
           icon="fingerprint"
           label="Active DIDs"
           value={summary.active_dids ?? 0}
-          hint={`${summary.deactivated_dids ?? 0} deactivated`}
           tone="did"
         />
         <StatCard
@@ -242,11 +241,7 @@ export function AdminDashboard({ data, username, onRefresh, loading }) {
                     <strong>{user.username}</strong>
                     <span className="admin-dash__list-sub">
                       {formatRoleLabel(user.role)}
-                      {user.has_did
-                        ? user.did_active === false
-                          ? ' · DID deactivated'
-                          : ' · DID active'
-                        : ' · DID pending'}
+                      {user.has_did ? ' · DID active' : ' · DID pending'}
                     </span>
                   </div>
                   <span className="admin-dash__list-meta">

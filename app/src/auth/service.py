@@ -15,14 +15,14 @@ from app.src.common.messaging import event_bus
 from app.src.common.pagination import paginate
 from app.src.common.response import success_response, error_response
 from app.src.common.auth_dependencies import CurrentUser
-from app.src.did.repository import get_did_doc_by_user_id, update_did_active_status, delete_did_by_user_id
+from app.src.did.repository import get_did_doc_by_user_id, delete_did_by_user_id
 from app.src.did.models import Did
 from app.src.credential.models import Credential
 from app.src.credential.enums import (
     CredentialStatus,
-    CredentialType,
     normalize_credential_type,
 )
+from app.src.credential_type.repository import list_credential_types
 from collections import Counter
 from sqlalchemy import func
 from web3 import Web3
@@ -139,34 +139,8 @@ def login_user(db: Session, username: str, password: str):
     }
 
 
-def _sync_did_active_from_chain(db: Session, did_record) -> bool | None:
-    if not did_record:
-        return None
-
-    try:
-        from app.src.blockchain.config import get_blockchain_settings
-        from app.src.did.registry import get_did_registry
-
-        settings = get_blockchain_settings()
-        if not settings.did_registry_address:
-            return bool(did_record.active)
-
-        registry = get_did_registry()
-        on_chain_active = registry.is_active(did_record.did)
-        if bool(did_record.active) != on_chain_active:
-            updated = update_did_active_status(db, did_record.did, on_chain_active)
-            if updated:
-                did_record.active = updated.active
-        return on_chain_active
-    except Exception:
-        return bool(did_record.active)
-
-
 def _serialize_user_summary(user, did_record=None) -> dict:
     role = user.role.value if hasattr(user.role, "value") else user.role
-    did_active = None
-    if did_record is not None:
-        did_active = bool(did_record.active)
 
     return {
         "user_id": user.id,
@@ -178,7 +152,6 @@ def _serialize_user_summary(user, did_record=None) -> dict:
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "has_did": did_record is not None,
         "did": did_record.did if did_record else None,
-        "did_active": did_active,
     }
 
 
@@ -192,7 +165,6 @@ def _serialize_did_detail(did_record) -> dict | None:
         "document_hash": did_record.document_hash,
         "tx_hash": did_record.tx_hash,
         "block_number": did_record.block_number,
-        "active": did_record.active,
         "created_at": did_record.created_at.isoformat() if did_record.created_at else None,
         "updated_at": did_record.updated_at.isoformat() if did_record.updated_at else None,
     }
@@ -210,8 +182,6 @@ def list_users(
 
     items = []
     for user, did_record in paginated["items"]:
-        if did_record is not None:
-            _sync_did_active_from_chain(db, did_record)
         items.append(_serialize_user_summary(user, did_record))
 
     return success_response(
@@ -232,8 +202,6 @@ def get_user_detail(db: Session, user_id: int):
         )
 
     did_record = get_did_doc_by_user_id(db, user_id)
-    if did_record is not None:
-        _sync_did_active_from_chain(db, did_record)
 
     return success_response(
         data={
@@ -257,8 +225,6 @@ def get_admin_dashboard(db: Session):
     }
 
     total_dids = db.query(Did).count()
-    active_dids = db.query(Did).filter(Did.active.is_(True)).count()
-    deactivated_dids = db.query(Did).filter(Did.active.is_(False)).count()
     pending_dids = max(total_users - total_dids, 0)
 
     total_credentials = db.query(Credential).count()
@@ -299,9 +265,18 @@ def get_admin_dashboard(db: Session):
     ):
         type_counts[normalize_credential_type(cred_type)] += count
     credentials_by_type = [
-        {"type": cred_type.value, "count": type_counts.get(cred_type.value, 0)}
-        for cred_type in CredentialType
+        {
+            "type": template.type_id,
+            "display_name": template.display_name,
+            "count": type_counts.get(template.type_id, 0),
+        }
+        for template in list_credential_types(db)
     ]
+    for cred_type, count in type_counts.items():
+        if not any(item["type"] == cred_type for item in credentials_by_type):
+            credentials_by_type.append(
+                {"type": cred_type, "display_name": cred_type, "count": count}
+            )
 
     recent_users_rows = (
         db.query(User, Did)
@@ -347,8 +322,6 @@ def get_admin_dashboard(db: Session):
             "summary": {
                 "total_users": total_users,
                 "total_dids": total_dids,
-                "active_dids": active_dids,
-                "deactivated_dids": deactivated_dids,
                 "pending_dids": pending_dids,
                 "total_credentials": total_credentials,
                 "active_credentials": active_credentials,
@@ -400,8 +373,6 @@ def list_admins(
 
     items = []
     for user, did_record in paginated["items"]:
-        if did_record is not None:
-            _sync_did_active_from_chain(db, did_record)
         summary = _serialize_user_summary(user, did_record)
         summary["is_authorized_issuer"] = _issuer_authorization_status(user.eth_address)
         items.append(summary)
@@ -431,8 +402,6 @@ def get_admin_detail(db: Session, user_id: int):
         )
 
     did_record = get_did_doc_by_user_id(db, user_id)
-    if did_record is not None:
-        _sync_did_active_from_chain(db, did_record)
 
     return success_response(
         data={

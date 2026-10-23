@@ -11,6 +11,7 @@ from app.src.common.database import Base
 from app.src.auth import models as auth_models
 from app.src.did import models as did_models
 from app.src.credential import models as credential_models
+from app.src.credential_type import models as credential_type_models
 
 load_dotenv()
 

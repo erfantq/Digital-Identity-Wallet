@@ -1,46 +1,57 @@
 export const DEFAULT_UNIVERSITY = 'Ferdowsi University of Mashhad'
 
-export const CREDENTIAL_TYPE_OPTIONS = [
-  {
-    value: 'UniversityPIDCredential',
-    label: 'University PID',
-    description: 'Personal identity credential for a university member.',
-  },
-  {
-    value: 'UniversityEnrollmentCredential',
-    label: 'Enrollment',
-    description: 'Active enrollment or employment status at the university.',
-  },
-  {
-    value: 'UniversityCertificateCredential',
-    label: 'Degree Certificate',
-    description: 'Completed degree or graduation certificate.',
-  },
+export const FIELD_DATA_TYPES = [
+  'string',
+  'number',
+  'date',
+  'select',
+  'file',
+  'boolean',
+  'derived',
 ]
-
-export const DEFAULT_CREDENTIAL_TYPE = CREDENTIAL_TYPE_OPTIONS[0].value
-
-const VALID_CREDENTIAL_TYPE_VALUES = new Set(
-  CREDENTIAL_TYPE_OPTIONS.map((option) => option.value),
-)
 
 const LEGACY_CREDENTIAL_TYPE_MAP = {
   UniversityCredential: 'UniversityPIDCredential',
   VerifiableCredential: 'UniversityPIDCredential',
 }
 
-export function normalizeCredentialType(type) {
-  if (!type) return DEFAULT_CREDENTIAL_TYPE
-  const cleaned = String(type).trim()
-  if (!cleaned) return DEFAULT_CREDENTIAL_TYPE
-  if (VALID_CREDENTIAL_TYPE_VALUES.has(cleaned)) return cleaned
-  return LEGACY_CREDENTIAL_TYPE_MAP[cleaned] || DEFAULT_CREDENTIAL_TYPE
+export const EMPTY_ISSUE_FORM = {
+  holder_did: '',
+  holderUsername: '',
+  holderAccountRole: '',
+  credentialType: '',
+  fieldValues: {},
+  fileFields: {},
+  attachment: null,
 }
 
-export function formatCredentialTypeLabel(type) {
+export function createEmptyIssueForm(credentialType = '') {
+  return {
+    ...EMPTY_ISSUE_FORM,
+    credentialType,
+    fieldValues: {},
+    fileFields: {},
+    attachment: null,
+  }
+}
+
+export function normalizeCredentialType(type) {
+  if (!type) return ''
+  if (Array.isArray(type)) {
+    const concrete = [...type].reverse().find((item) => item && item !== 'VerifiableCredential')
+    return normalizeCredentialType(concrete || type[0])
+  }
+  const cleaned = String(type).trim()
+  if (!cleaned) return ''
+  return LEGACY_CREDENTIAL_TYPE_MAP[cleaned] || cleaned
+}
+
+export function formatCredentialTypeLabel(type, types = []) {
   const normalized = normalizeCredentialType(type)
-  const option = CREDENTIAL_TYPE_OPTIONS.find((item) => item.value === normalized)
-  return option?.label || normalized
+  if (!normalized) return '—'
+  const match = types.find((item) => item.type_id === normalized)
+  if (match?.display_name) return match.display_name
+  return normalized
 }
 
 export function memberRoleFromAccountRole(accountRole) {
@@ -49,41 +60,52 @@ export function memberRoleFromAccountRole(accountRole) {
   return ''
 }
 
-export const DEGREE_OPTIONS = ['Bachelor', 'Master', 'PhD']
-
-export const TEACHER_RANK_OPTIONS = [
-  'Instructor',
-  'Lecturer',
-  'Assistant Professor',
-  'Associate Professor',
-  'Professor',
-]
-
-export const EMPTY_ISSUE_FORM = {
-  holder_did: '',
-  holderUsername: '',
-  holderAccountRole: '',
-  credentialType: DEFAULT_CREDENTIAL_TYPE,
-  firstName: '',
-  lastName: '',
-  nationalId: '',
-  university: DEFAULT_UNIVERSITY,
-  faculty: '',
-  department: '',
-  role: '',
-  degreeLevel: 'Bachelor',
-  enrollmentYear: '',
-  currentTerm: '',
-  academicRank: TEACHER_RANK_OPTIONS[0],
-  employmentYear: '',
-  programName: '',
-  graduationDate: '',
-  honors: '',
-  gpa: '',
-  attachment: null,
+export function sortTemplateFields(fields = []) {
+  return [...fields].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
 }
 
-const SHARED_TEXT_FIELDS = ['firstName', 'lastName', 'nationalId', 'faculty', 'department']
+export function getDerivedFieldValues(template, holderAccountRole) {
+  const result = {}
+  for (const field of template?.fields || []) {
+    if (field.data_type === 'derived' && field.source === 'holder_account_role') {
+      result[field.key] = memberRoleFromAccountRole(holderAccountRole)
+    }
+  }
+  return result
+}
+
+export function isFieldVisible(field, values) {
+  const rule = field?.visible_when
+  if (!rule) return true
+  return values?.[rule.field] === rule.equals
+}
+
+export function getVisibleTemplateFields(template, fieldValues, holderAccountRole) {
+  const derived = getDerivedFieldValues(template, holderAccountRole)
+  const values = { ...fieldValues, ...derived }
+  return sortTemplateFields(template?.fields || []).filter((field) => isFieldVisible(field, values))
+}
+
+export function defaultFieldValuesForTemplate(template) {
+  const values = {}
+  for (const field of sortTemplateFields(template?.fields || [])) {
+    if (field.data_type === 'derived' || field.data_type === 'file') continue
+    if (field.key === 'university') {
+      values[field.key] = DEFAULT_UNIVERSITY
+      continue
+    }
+    if (field.data_type === 'select' && Array.isArray(field.options) && field.options.length > 0) {
+      values[field.key] = field.options[0]
+      continue
+    }
+    if (field.data_type === 'boolean') {
+      values[field.key] = false
+      continue
+    }
+    values[field.key] = ''
+  }
+  return values
+}
 
 function trimOrEmpty(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -95,154 +117,125 @@ function optionalNumber(value) {
   return Number.isNaN(num) ? undefined : num
 }
 
-function pickTrimmed(form, keys) {
-  const result = {}
-  for (const key of keys) {
-    const value = trimOrEmpty(form[key])
-    if (value) result[key] = value
+export function resolveIssueAttachment(form, template) {
+  if (form.attachment) return form.attachment
+  const fileFields = getVisibleTemplateFields(template, form.fieldValues, form.holderAccountRole).filter(
+    (field) => field.data_type === 'file',
+  )
+  for (const field of fileFields) {
+    const file = form.fileFields?.[field.key]
+    if (file) return file
   }
-  return result
+  return null
 }
 
-export function buildIssuePayload(form) {
-  const credential_data = {
-    ...pickTrimmed(form, SHARED_TEXT_FIELDS),
-    university: trimOrEmpty(form.university) || DEFAULT_UNIVERSITY,
+export function buildIssuePayload(form, template) {
+  const derived = getDerivedFieldValues(template, form.holderAccountRole)
+  const values = { ...form.fieldValues, ...derived }
+  const credential_data = {}
+
+  for (const field of getVisibleTemplateFields(template, form.fieldValues, form.holderAccountRole)) {
+    if (field.data_type === 'derived') {
+      if (derived[field.key]) credential_data[field.key] = derived[field.key]
+      continue
+    }
+
+    if (field.data_type === 'file') {
+      continue
+    }
+
+    if (field.data_type === 'boolean') {
+      credential_data[field.key] = Boolean(values[field.key])
+      continue
+    }
+
+    if (field.data_type === 'number') {
+      const num = optionalNumber(values[field.key])
+      if (num != null) credential_data[field.key] = num
+      continue
+    }
+
+    const text = trimOrEmpty(values[field.key])
+    if (field.key === 'university' && !text) {
+      credential_data.university = DEFAULT_UNIVERSITY
+      continue
+    }
+    if (text) credential_data[field.key] = text
   }
 
   if (trimOrEmpty(form.holderUsername)) {
     credential_data.username = trimOrEmpty(form.holderUsername)
   }
 
-  // Member role is always derived from the linked wallet account — never trust UI overrides.
-  const derivedRole = memberRoleFromAccountRole(form.holderAccountRole)
-
-  switch (form.credentialType) {
-    case 'UniversityPIDCredential':
-      credential_data.role = derivedRole
-      break
-
-    case 'UniversityEnrollmentCredential':
-      credential_data.role = derivedRole
-      if (derivedRole === 'Student') {
-        credential_data.degreeLevel = form.degreeLevel
-        const enrollmentYear = optionalNumber(form.enrollmentYear)
-        const currentTerm = optionalNumber(form.currentTerm)
-        if (enrollmentYear != null) credential_data.enrollmentYear = enrollmentYear
-        if (currentTerm != null) credential_data.currentTerm = currentTerm
-      } else if (derivedRole === 'Teacher') {
-        credential_data.academicRank = form.academicRank
-        const employmentYear = optionalNumber(form.employmentYear)
-        if (employmentYear != null) credential_data.employmentYear = employmentYear
-      }
-      break
-
-    case 'UniversityCertificateCredential':
-      Object.assign(
-        credential_data,
-        pickTrimmed(form, ['programName', 'graduationDate', 'honors', 'gpa']),
-      )
-      credential_data.degreeLevel = form.degreeLevel
-      break
-
-    default:
-      break
-  }
-
   return {
     holder_did: trimOrEmpty(form.holder_did),
-    type: form.credentialType,
+    type: form.credentialType || template?.type_id,
     credential_data,
   }
 }
 
-function validateYearField(value, fieldName, errors, { min = 1950, max = 2050 } = {}) {
-  if (value === '') return
-  const year = Number(value)
-  if (Number.isNaN(year) || year < min || year > max) {
-    errors[fieldName] = `Enter a valid year (${min}–${max}).`
-  }
-}
-
-function validateSharedFields(form, errors, { requireNationalId = false } = {}) {
-  if (!trimOrEmpty(form.firstName)) errors.firstName = 'First name is required.'
-  if (!trimOrEmpty(form.lastName)) errors.lastName = 'Last name is required.'
-  if (requireNationalId && !trimOrEmpty(form.nationalId)) {
-    errors.nationalId = 'National ID is required.'
-  }
-}
-
-function requireText(form, field, label, errors) {
-  if (!trimOrEmpty(form[field])) {
-    errors[field] = `${label} is required.`
-  }
-}
-
-export function validateIssueForm(form) {
+export function validateIssueForm(form, template) {
   const errors = {}
 
   if (!trimOrEmpty(form.holder_did)) {
     errors.holder_did = 'Holder DID is required.'
   }
 
-  const derivedRole = memberRoleFromAccountRole(form.holderAccountRole)
-  const needsMemberRole = showsRoleSelector(form.credentialType)
+  if (!form.credentialType || !template) {
+    errors.credentialType = 'Select a credential type.'
+    return errors
+  }
 
-  if (needsMemberRole && trimOrEmpty(form.holder_did)) {
-    if (!trimOrEmpty(form.holderAccountRole)) {
-      errors.role = 'Resolve the holder DID before issuing this credential.'
-    } else if (!derivedRole) {
-      errors.role =
-        'Holder account role must be student or teacher to issue this credential type.'
+  const derived = getDerivedFieldValues(template, form.holderAccountRole)
+  const visibleFields = getVisibleTemplateFields(template, form.fieldValues, form.holderAccountRole)
+
+  for (const field of visibleFields) {
+    if (field.data_type === 'derived') {
+      if (field.required) {
+        if (!trimOrEmpty(form.holderAccountRole)) {
+          errors[field.key] = 'Resolve the holder DID before issuing this credential.'
+        } else if (!derived[field.key]) {
+          errors[field.key] =
+            'Holder account role must be student or teacher to issue this credential type.'
+        }
+      }
+      continue
+    }
+
+    if (field.data_type === 'file') {
+      const file = form.fileFields?.[field.key] || (field.key === 'attachment' ? form.attachment : null)
+      if (field.required && !file && !form.attachment) {
+        errors[field.key] = `${field.label} is required.`
+      }
+      continue
+    }
+
+    if (field.data_type === 'boolean') {
+      continue
+    }
+
+    const raw = form.fieldValues?.[field.key]
+    if (field.required && (raw == null || String(raw).trim() === '')) {
+      errors[field.key] = `${field.label} is required.`
+      continue
+    }
+
+    if (field.data_type === 'number' && raw !== '' && raw != null) {
+      const num = Number(raw)
+      if (Number.isNaN(num)) {
+        errors[field.key] = `${field.label} must be a number.`
+      }
+    }
+
+    if (field.data_type === 'select' && raw) {
+      const options = field.options || []
+      if (options.length > 0 && !options.includes(raw)) {
+        errors[field.key] = `${field.label} must be one of the allowed options.`
+      }
     }
   }
 
-  switch (form.credentialType) {
-    case 'UniversityPIDCredential':
-      validateSharedFields(form, errors, { requireNationalId: true })
-      break
-
-    case 'UniversityEnrollmentCredential':
-      validateSharedFields(form, errors)
-      if (derivedRole === 'Student') {
-        validateYearField(form.enrollmentYear, 'enrollmentYear', errors)
-        if (form.currentTerm !== '') {
-          const term = Number(form.currentTerm)
-          if (Number.isNaN(term) || term < 1 || term > 12) {
-            errors.currentTerm = 'Enter a valid term (1–12).'
-          }
-        }
-      } else if (derivedRole === 'Teacher') {
-        validateYearField(form.employmentYear, 'employmentYear', errors)
-      }
-      break
-
-    case 'UniversityCertificateCredential':
-      validateSharedFields(form, errors)
-      requireText(form, 'programName', 'Program name', errors)
-      requireText(form, 'graduationDate', 'Graduation date', errors)
-      break
-
-    default:
-      break
-  }
-
   return errors
-}
-
-export function showsEnrollmentSection(credentialType) {
-  return credentialType === 'UniversityEnrollmentCredential'
-}
-
-export function showsCertificateSection(credentialType) {
-  return credentialType === 'UniversityCertificateCredential'
-}
-
-export function showsRoleSelector(credentialType) {
-  return (
-    credentialType === 'UniversityPIDCredential' ||
-    credentialType === 'UniversityEnrollmentCredential'
-  )
 }
 
 export const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png'
@@ -294,4 +287,104 @@ export function ipfsGatewayUrls(uri) {
 
 export function ipfsGatewayUrl(uri) {
   return ipfsGatewayUrls(uri)[0] ?? null
+}
+
+/** Empty field draft for the credential-type builder. */
+export function createEmptyFieldDraft(order = 1) {
+  return {
+    key: '',
+    label: '',
+    data_type: 'string',
+    required: false,
+    optionsText: '',
+    visible_when_field: '',
+    visible_when_equals: '',
+    order,
+    source: '',
+  }
+}
+
+export function buildCredentialTypePayload(form) {
+  const fields = (form.fields || []).map((field, index) => {
+    const payload = {
+      key: field.key.trim(),
+      label: field.label.trim(),
+      data_type: field.data_type,
+      required: Boolean(field.required),
+      order: Number(field.order) || index + 1,
+    }
+
+    if (field.data_type === 'select') {
+      payload.options = String(field.optionsText || '')
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+
+    if (field.data_type === 'derived') {
+      payload.source = field.source || 'holder_account_role'
+    }
+
+    const whenField = trimOrEmpty(field.visible_when_field)
+    const whenEquals = trimOrEmpty(field.visible_when_equals)
+    if (whenField && whenEquals !== '') {
+      payload.visible_when = { field: whenField, equals: whenEquals }
+    }
+
+    return payload
+  })
+
+  return {
+    type_id: form.type_id.trim(),
+    display_name: form.display_name.trim(),
+    description: trimOrEmpty(form.description) || null,
+    revocable: Boolean(form.revocable),
+    fields,
+  }
+}
+
+export function validateCredentialTypeForm(form) {
+  const errors = {}
+  if (!trimOrEmpty(form.type_id)) errors.type_id = 'Type ID is required.'
+  else if (!/^[A-Za-z0-9_]+$/.test(form.type_id.trim())) {
+    errors.type_id = 'Type ID must be alphanumeric/underscore.'
+  }
+
+  if (!trimOrEmpty(form.display_name)) errors.display_name = 'Display name is required.'
+
+  if (!form.fields?.length) {
+    errors.fields = 'Add at least one field.'
+    return errors
+  }
+
+  const keys = new Set()
+  form.fields.forEach((field, index) => {
+    const prefix = `field_${index}`
+    if (!trimOrEmpty(field.key)) errors[`${prefix}_key`] = 'Key is required.'
+    else if (!/^[A-Za-z0-9_]+$/.test(field.key.trim())) {
+      errors[`${prefix}_key`] = 'Key must be alphanumeric/underscore.'
+    } else if (keys.has(field.key.trim())) {
+      errors[`${prefix}_key`] = 'Field keys must be unique.'
+    } else {
+      keys.add(field.key.trim())
+    }
+
+    if (!trimOrEmpty(field.label)) errors[`${prefix}_label`] = 'Label is required.'
+
+    if (field.data_type === 'select') {
+      const options = String(field.optionsText || '')
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+      if (options.length === 0) {
+        errors[`${prefix}_options`] = 'Select fields need at least one option.'
+      }
+    }
+
+    if (field.data_type === 'derived' && field.source && field.source !== 'holder_account_role') {
+      errors[`${prefix}_source`] = 'Derived source must be holder_account_role.'
+    }
+  })
+
+  return errors
 }

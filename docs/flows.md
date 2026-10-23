@@ -374,10 +374,12 @@ sequenceDiagram
   participant SBT as CertificateSBT
 
   A->>API: credential_id + optional reason
-  API->>DB: Load credential
+  API->>DB: Load credential + credential_types.revocable
   alt Already revoked
     API-->>A: 409 Conflict
-  else Active
+  else Type not revocable
+    API-->>A: 400 Bad Request
+  else Active and revocable
     API->>DB: status=revoked, revoked_at, revoked_by, reason
     API->>Bus: publish cred.revoked
     API-->>A: Revoked locally (chain pending)
@@ -416,7 +418,7 @@ sequenceDiagram
   else Found
     opt CHECK_DID_ON_CHAIN_RESOLVE
       API->>Chain: getDidRecord / isActive
-      API->>API: Compare document_hash;<br/>set deactivated metadata
+      API->>API: Compare document_hash
     end
     API-->>U: DID Resolution<br/>(document + metadata)
   end
@@ -424,24 +426,11 @@ sequenceDiagram
 
 ---
 
-## 9. Deactivate DID (admin)
+## 9. Credential type templates (super_admin)
 
-**Action:** `POST /dids/on-chain/deactivate` (admin).
+**Actions:** Create / list immutable credential templates (`POST/GET /credential-types`).
 
-```mermaid
-sequenceDiagram
-  actor A as Admin
-  participant API as POST /dids/on-chain/deactivate
-  participant Chain as DIDRegistry
-  participant DB as PostgreSQL
-
-  A->>API: { did }
-  API->>Chain: deactivateDid(didHash)
-  API->>DB: active = false
-  API-->>A: tx_hash + success
-```
-
-**Effect on Verify:** Issuer (or relevant) DID active check can fail → credentials from that issuer may no longer verify when DID checks are enabled.
+Templates store form fields and a `revocable` flag in PostgreSQL and on `CredentialTypeRegistry`. After creation, properties cannot change. Credential revoke is rejected when the template is non-revocable (DB + on-chain).
 
 ---
 
@@ -612,8 +601,8 @@ flowchart TD
   Parse --> Role{Role check}
 
   Role -->|any authenticated| Me[e.g. GET /dids/me<br/>GET own credentials]
-  Role -->|admin or super_admin| AdminOps[register, issue, revoke,<br/>deactivate DID, list users]
-  Role -->|super_admin only| SuperOps[list/delete admins<br/>authorize/revoke issuer]
+  Role -->|admin or super_admin| AdminOps[register, issue, revoke,<br/>list users]
+  Role -->|super_admin only| SuperOps[list/delete admins<br/>authorize/revoke issuer<br/>define credential types]
   Role -->|no token| Public[login, landing,<br/>GET /dids/id, POST /verify,<br/>is-authorized-issuer]
 ```
 
@@ -627,10 +616,10 @@ flowchart TD
 | Register user | `POST /auth/register` | insert user | `user.created` → DID → `did.created` | `DIDRegistry` |
 | Create DID (manual) | `POST /dids/` | insert did | `did.created` | `DIDRegistry` |
 | Resolve DID | `GET /dids/{did}` / `/me` | read | — | optional read registry |
-| Deactivate DID | `POST /dids/on-chain/deactivate` | `active=false` | — | `deactivateDid` (sync) |
+| Create credential type | `POST /credential-types` | insert type | — | `CredentialTypeRegistry` |
 | Issue credential | `POST /credentials/issue` | insert VC | `cred.created` | IPFS + Registry + SBT |
 | Verify | `POST /credentials/verify` | optional DID lookup | — | read Trust / DID / Registry / SBT |
-| Revoke credential | `POST /credentials/revoke` | status revoked | `cred.revoked` | Registry + SBT revoke |
+| Revoke credential | `POST /credentials/revoke` | status revoked (if type revocable) | `cred.revoked` | Registry + SBT revoke |
 | Authorize issuer | `POST /trusted-entities/authorize` | — | — | Trust registry write |
 | Revoke issuer | `POST /trusted-entities/revoke` | — | — | Trust registry write |
 | Issuer status | `GET …/is-authorized-issuer` | — | — | Trust registry read |

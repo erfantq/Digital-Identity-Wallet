@@ -64,17 +64,14 @@ class DIDRegistryService:
             )
         )
 
-    def deactivate_did(self, did: str) -> dict[str, Any]:
-        did_hash = did_hash_from_string(did)
-        return self._send_tx(self.contract.functions.deactivateDid(did_hash))
-
     def is_active(self, did: str) -> bool:
+        """True when the DID is registered on-chain."""
         did_hash = did_hash_from_string(did)
         return bool(self.contract.functions.isActive(did_hash).call())
 
     def get_did_record(self, did: str) -> dict[str, Any]:
         did_hash = did_hash_from_string(did)
-        controller, document_hash, active, registered_at = (
+        controller, document_hash, registered_at = (
             self.contract.functions.getDidRecord(did_hash).call()
         )
         return {
@@ -82,8 +79,8 @@ class DIDRegistryService:
             "did_hash": Web3.to_hex(did_hash),
             "controller": controller,
             "document_hash": Web3.to_hex(document_hash),
-            "active": bool(active),
             "registered_at": int(registered_at),
+            "active": int(registered_at) > 0,
         }
 
     def _get_owner_account(self):

@@ -52,6 +52,15 @@ from app.src.trust.registry import (
     TrustedEntityRegistryError,
     get_trusted_entity_registry,
 )
+from app.src.credential_type.registry import (
+    CredentialTypeRegistryError,
+    get_credential_type_registry,
+)
+from app.src.credential_type.repository import (
+    list_credential_types,
+    schema_hash_for_fields,
+    update_credential_type_chain_anchor,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -204,6 +213,48 @@ def ensure_issuer_authorized(eth_address: str) -> None:
     )
 
 
+def ensure_credential_types_on_chain(db) -> None:
+    settings = get_blockchain_settings()
+    if not settings.credential_type_registry_address:
+        logger.info(
+            "CREDENTIAL_TYPE_REGISTRY_ADDRESS unset; skipping credential type anchors"
+        )
+        return
+
+    registry = get_credential_type_registry()
+    for record in list_credential_types(db):
+        schema_hash = record.schema_hash or schema_hash_for_fields(record.fields or [])
+        if registry.type_exists(record.type_id):
+            if not record.tx_hash:
+                update_credential_type_chain_anchor(
+                    db,
+                    record.type_id,
+                    schema_hash=schema_hash,
+                    tx_hash=record.tx_hash or "already-on-chain",
+                    block_number=record.block_number or 0,
+                )
+            logger.info("Credential type already on-chain: %s", record.type_id)
+            continue
+
+        chain_result = registry.register_credential_type(
+            type_id=record.type_id,
+            revocable=bool(record.revocable),
+            schema_hash=schema_hash,
+        )
+        update_credential_type_chain_anchor(
+            db,
+            record.type_id,
+            schema_hash=schema_hash,
+            tx_hash=chain_result["tx_hash"],
+            block_number=chain_result["block_number"],
+        )
+        logger.info(
+            "Anchored credential type on-chain: %s (tx=%s)",
+            record.type_id,
+            chain_result["tx_hash"],
+        )
+
+
 async def seed_admin(args: argparse.Namespace) -> None:
     role = UserRoleEnum(args.role)
     db = SessionLocal()
@@ -223,6 +274,7 @@ async def seed_admin(args: argparse.Namespace) -> None:
         else:
             ensure_did_on_chain(db, did_record)
             ensure_issuer_authorized(user.eth_address)
+            ensure_credential_types_on_chain(db)
 
         print()
         print("Bootstrap complete")
@@ -243,7 +295,12 @@ def main() -> int:
     try:
         asyncio.run(seed_admin(args))
         return 0
-    except (DIDRegistryError, TrustedEntityRegistryError, RuntimeError) as exc:
+    except (
+        DIDRegistryError,
+        TrustedEntityRegistryError,
+        CredentialTypeRegistryError,
+        RuntimeError,
+    ) as exc:
         logger.error("Seed failed: %s", exc)
         logger.error(
             "If Besu is not running, retry with --skip-chain or start Besu first."

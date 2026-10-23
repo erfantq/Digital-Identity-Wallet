@@ -132,6 +132,9 @@ async def handle_cred_created(data):
                         credential_hash=credential_hash,
                         issuer_address=issuer_address,
                         holder_did=holder_did,
+                        type_id=data.get("type")
+                        or getattr(record, "type", None)
+                        or "UniversityPIDCredential",
                     )
                     updated = update_credential_chain_anchor(
                         db=db,
@@ -232,6 +235,9 @@ async def handle_cred_created(data):
                 credential_id=credential_id,
                 credential_hash=credential_hash,
                 issuer_address=issuer_address,
+                type_id=data.get("type")
+                or getattr(record, "type", None)
+                or "UniversityPIDCredential",
                 token_uri=token_uri,
             )
         except CertificateSBTError as exc:

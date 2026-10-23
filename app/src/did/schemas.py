@@ -71,14 +71,9 @@ class DIDResolutionMetadata(BaseModel):
 class DIDDocumentMetadata(BaseModel):
     created: Optional[str] = None  # ISO8601 timestamp
     updated: Optional[str] = None  # ISO8601 timestamp
-    deactivated: Optional[bool] = None
     versionId: Optional[str] = None
 
 class DIDResolution(BaseModel):
     didResolutionMetadata: DIDResolutionMetadata
     didDocument: DIDDocument
     didDocumentMetadata: DIDDocumentMetadata
-
-
-class DeactivateDidRequest(BaseModel):
-    did: str = Field(..., description="DID string to deactivate on-chain")

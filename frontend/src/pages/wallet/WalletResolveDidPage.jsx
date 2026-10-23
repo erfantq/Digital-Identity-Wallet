@@ -243,7 +243,7 @@ export function WalletResolveDidPage() {
           {health.alert && (
             <div className={`wallet-did__alert wallet-did__alert--${health.alertTone}`} role="status">
               <MaterialIcon
-                name={health.key === 'deactivated' ? 'cancel' : 'warning'}
+                name={health.key === 'inactive' ? 'link_off' : 'warning'}
                 size={20}
                 filled
               />

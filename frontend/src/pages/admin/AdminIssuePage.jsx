@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { listCredentialTypes } from '@/api/credentialTypes'
 import { issueCredential } from '@/api/credentials'
 import { getHolderProfileByDid } from '@/api/dids'
 import { ApiError } from '@/api/client'
@@ -8,9 +9,10 @@ import {
   IssueCredentialSuccess,
 } from '@/components/admin/IssueCredentialPanel'
 import {
-  EMPTY_ISSUE_FORM,
+  createEmptyIssueForm,
   buildIssuePayload,
-  memberRoleFromAccountRole,
+  defaultFieldValuesForTemplate,
+  resolveIssueAttachment,
   validateAttachment,
   validateIssueForm,
 } from '@/utils/issueCredential'
@@ -23,7 +25,10 @@ export function AdminIssuePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [view, setView] = useState('form')
-  const [form, setForm] = useState(EMPTY_ISSUE_FORM)
+  const [credentialTypes, setCredentialTypes] = useState([])
+  const [typesLoading, setTypesLoading] = useState(true)
+  const [typesError, setTypesError] = useState(null)
+  const [form, setForm] = useState(createEmptyIssueForm())
   const [fieldErrors, setFieldErrors] = useState({})
   const [globalError, setGlobalError] = useState(null)
   const [holderDidError, setHolderDidError] = useState(false)
@@ -37,6 +42,44 @@ export function AdminIssuePage() {
     document.title = 'FUM Wallet - Issue Credential'
   }, [])
 
+  const selectedTemplate = useMemo(
+    () => credentialTypes.find((item) => item.type_id === form.credentialType) || null,
+    [credentialTypes, form.credentialType],
+  )
+
+  const loadTypes = useCallback(async () => {
+    setTypesLoading(true)
+    setTypesError(null)
+    try {
+      const data = await listCredentialTypes()
+      const items = Array.isArray(data) ? data : data?.items || []
+      setCredentialTypes(items)
+      setForm((prev) => {
+        if (prev.credentialType && items.some((item) => item.type_id === prev.credentialType)) {
+          return prev
+        }
+        const first = items[0]
+        if (!first) return createEmptyIssueForm()
+        return {
+          ...createEmptyIssueForm(first.type_id),
+          holder_did: prev.holder_did,
+          holderUsername: prev.holderUsername,
+          holderAccountRole: prev.holderAccountRole,
+          fieldValues: defaultFieldValuesForTemplate(first),
+        }
+      })
+    } catch (err) {
+      setCredentialTypes([])
+      setTypesError(err instanceof ApiError ? err.message : 'Failed to load credential types.')
+    } finally {
+      setTypesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadTypes()
+  }, [loadTypes])
+
   const lookupHolderProfile = useCallback(async (didValue) => {
     const did = didValue?.trim()
     if (!did) {
@@ -45,7 +88,6 @@ export function AdminIssuePage() {
         ...prev,
         holderUsername: '',
         holderAccountRole: '',
-        role: '',
       }))
       return
     }
@@ -59,7 +101,6 @@ export function AdminIssuePage() {
         ...prev,
         holderUsername: profile.username ?? '',
         holderAccountRole: profile.role ?? '',
-        role: memberRoleFromAccountRole(profile.role),
       }))
       setHolderDidError(false)
     } catch (err) {
@@ -67,7 +108,6 @@ export function AdminIssuePage() {
         ...prev,
         holderUsername: '',
         holderAccountRole: '',
-        role: '',
       }))
       if (err instanceof ApiError && err.status === 404) {
         setHolderLookupError('No wallet account is linked to this DID.')
@@ -93,6 +133,7 @@ export function AdminIssuePage() {
     lookupHolderProfile(trimmed)
     navigate('/admin/issue', { replace: true, state: {} })
   }, [location.state, lookupHolderProfile, navigate])
+
   function handleChange(event) {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -106,19 +147,32 @@ export function AdminIssuePage() {
           ...prev,
           holderUsername: '',
           holderAccountRole: '',
-          role: '',
         }))
       }
     }
   }
 
-  function handleSelectChange(event) {
-    handleChange(event)
+  function handleFieldValueChange(key, value) {
+    setForm((prev) => ({
+      ...prev,
+      fieldValues: {
+        ...prev.fieldValues,
+        [key]: value,
+      },
+    }))
+    setFieldErrors((prev) => ({ ...prev, [key]: undefined }))
   }
 
   function handleCredentialTypeChange(event) {
     const credentialType = event.target.value
-    setForm((prev) => ({ ...prev, credentialType }))
+    const template = credentialTypes.find((item) => item.type_id === credentialType)
+    setForm((prev) => ({
+      ...prev,
+      credentialType,
+      fieldValues: defaultFieldValuesForTemplate(template),
+      fileFields: {},
+      attachment: null,
+    }))
     setFieldErrors({})
     setGlobalError(null)
   }
@@ -138,8 +192,43 @@ export function AdminIssuePage() {
     setFieldErrors((prev) => ({ ...prev, attachment: undefined }))
   }
 
+  function handleFileFieldChange(key, file) {
+    const attachmentError = validateAttachment(file)
+    setForm((prev) => ({
+      ...prev,
+      fileFields: {
+        ...prev.fileFields,
+        [key]: file,
+      },
+    }))
+    setFieldErrors((prev) => ({
+      ...prev,
+      [key]: attachmentError || undefined,
+      attachment: undefined,
+    }))
+  }
+
+  function handleClearFileField(key) {
+    setForm((prev) => ({
+      ...prev,
+      fileFields: {
+        ...prev.fileFields,
+        [key]: null,
+      },
+    }))
+    setFieldErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
+
   function resetForm() {
-    setForm(EMPTY_ISSUE_FORM)
+    const first = credentialTypes[0]
+    setForm(
+      first
+        ? {
+            ...createEmptyIssueForm(first.type_id),
+            fieldValues: defaultFieldValuesForTemplate(first),
+          }
+        : createEmptyIssueForm(),
+    )
     setFieldErrors({})
     setGlobalError(null)
     setHolderDidError(false)
@@ -152,8 +241,9 @@ export function AdminIssuePage() {
   async function handleSubmit(event) {
     event.preventDefault()
 
-    const errors = validateIssueForm(form)
-    const attachmentError = validateAttachment(form.attachment)
+    const errors = validateIssueForm(form, selectedTemplate)
+    const attachment = resolveIssueAttachment(form, selectedTemplate)
+    const attachmentError = validateAttachment(attachment)
     if (attachmentError) errors.attachment = attachmentError
 
     if (Object.keys(errors).length > 0) {
@@ -174,7 +264,6 @@ export function AdminIssuePage() {
           ...prev,
           holderUsername,
           holderAccountRole,
-          role: memberRoleFromAccountRole(profile.role),
         }))
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
@@ -197,13 +286,13 @@ export function AdminIssuePage() {
     setHolderDidError(false)
 
     try {
-      const payload = buildIssuePayload({
+      const nextForm = {
         ...form,
         holderUsername,
         holderAccountRole,
-        role: memberRoleFromAccountRole(holderAccountRole),
-      })
-      const data = await issueCredential(payload, form.attachment)
+      }
+      const payload = buildIssuePayload(nextForm, selectedTemplate)
+      const data = await issueCredential(payload, attachment)
       setResult(data)
       setView('success')
     } catch (err) {
@@ -236,6 +325,10 @@ export function AdminIssuePage() {
 
           <IssueCredentialForm
             form={form}
+            template={selectedTemplate}
+            credentialTypes={credentialTypes}
+            typesLoading={typesLoading}
+            typesError={typesError}
             fieldErrors={fieldErrors}
             globalError={globalError}
             holderDidError={holderDidError}
@@ -244,11 +337,13 @@ export function AdminIssuePage() {
             loading={loading}
             attachmentName={form.attachment?.name}
             onChange={handleChange}
-            onSelectChange={handleSelectChange}
+            onFieldValueChange={handleFieldValueChange}
             onCredentialTypeChange={handleCredentialTypeChange}
             onHolderDidBlur={handleHolderDidBlur}
             onFileChange={handleFileChange}
             onClearAttachment={handleClearAttachment}
+            onFileFieldChange={handleFileFieldChange}
+            onClearFileField={handleClearFileField}
             onSubmit={handleSubmit}
             onCancel={() => navigate('/admin')}
           />
@@ -258,6 +353,7 @@ export function AdminIssuePage() {
       {view === 'success' && result && (
         <IssueCredentialSuccess
           result={result}
+          credentialTypes={credentialTypes}
           jsonExpanded={jsonExpanded}
           onToggleJson={() => setJsonExpanded((value) => !value)}
           onViewRegistry={() => navigate('/admin/credentials')}

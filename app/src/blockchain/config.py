@@ -29,6 +29,10 @@ class BlockchainSettings:
             "CERTIFICATE_SBT_ADDRESS",
             "",
         )
+        self.credential_type_registry_address = os.getenv(
+            "CREDENTIAL_TYPE_REGISTRY_ADDRESS",
+            "",
+        )
         # Private key that owns registry contracts on Besu
         self.trust_admin_private_key = os.getenv("BESU_TRUST_ADMIN_PRIVATE_KEY", "")
         self.require_trusted_issuer = (

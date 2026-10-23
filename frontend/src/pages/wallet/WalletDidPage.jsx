@@ -198,7 +198,7 @@ export function WalletDidPage() {
       {health.alert && (
         <div className={`wallet-did__alert wallet-did__alert--${health.alertTone}`} role="status">
           <MaterialIcon
-            name={health.key === 'deactivated' ? 'cancel' : 'warning'}
+            name={health.key === 'inactive' ? 'link_off' : 'warning'}
             size={20}
             filled
           />
@@ -324,7 +324,7 @@ export function WalletDidPage() {
             )}
 
             <p className="wallet-did__side-note">
-              Identity registration and deactivation are managed by university administrators.
+              Identity registration is managed by university administrators.
             </p>
           </section>
         </aside>

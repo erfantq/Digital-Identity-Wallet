@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Backgrou
 from .dependencies import SessionLocal, get_db
 from .schemas import (
     DIDCreate, DIDDocument, DIDResolution, DIDMethod,
-    DIDResolutionMetadata, DIDDocumentMetadata, DeactivateDidRequest,
+    DIDResolutionMetadata, DIDDocumentMetadata,
 )
 from .models import Did
 from .service import (
     create_did_service,
     resolve_did_service
 )
-from .repository import get_did_doc_by_user_id, update_did_active_status, get_did_by_string, get_user_id_for_did
+from .repository import get_did_doc_by_user_id, get_did_by_string, get_user_id_for_did
 from app.src.auth.repository import get_user_by_id
 from .registry import DIDRegistryError, get_did_registry
 from app.src.common.messaging import event_bus
@@ -114,31 +114,6 @@ def get_did_on_chain_status(
         )
 
 
-@router.post("/on-chain/deactivate")
-def deactivate_did_on_chain(
-    request: DeactivateDidRequest,
-    db=Depends(get_db),
-    _: CurrentUser = Depends(require_admin),
-):
-    try:
-        registry = get_did_registry()
-        result = registry.deactivate_did(request.did)
-        update_did_active_status(db, request.did, active=False)
-        return success_response(
-            data={"did": request.did, **result},
-            message="DID deactivated on-chain successfully",
-        )
-    except DIDRegistryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        )
-    except Exception as exc:
-        logger.exception("Failed to deactivate DID on-chain did=%s", request.did)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to deactivate DID: {exc}",
-        )
-
 # ok
 @router.get("/me", response_model=DIDResolution, tags=["dids"])
 async def resolve_my_did(
@@ -232,7 +207,7 @@ def get_holder_profile_by_did(
             "role": role,
             "did": did_record.did,
             "ethereum_address": did_record.ethereum_address,
-            "did_active": bool(did_record.active),
+            "has_did": True,
         },
         message="Holder profile retrieved successfully",
     )

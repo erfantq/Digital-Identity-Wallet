@@ -24,18 +24,9 @@ function RoleBadge({ role }) {
   )
 }
 
-function DidStatusPill({ hasDid, didActive, compact = false }) {
+function DidStatusPill({ hasDid, compact = false }) {
   if (!hasDid) {
     return <span className="user-dir__did-pill user-dir__did-pill--no">Pending</span>
-  }
-
-  if (didActive === false) {
-    return (
-      <span className="user-dir__did-pill user-dir__did-pill--deactivated">
-        <MaterialIcon name="block" size={14} />
-        Deactivated
-      </span>
-    )
   }
 
   return (
@@ -240,7 +231,7 @@ export function UserDirectoryTable({ items, selectedUserId, onSelect, loading })
                   <code>{truncateMiddle(item.eth_address, 8, 6)}</code>
                 </td>
                 <td className="user-dir__th-hide-mobile">
-                  <DidStatusPill hasDid={item.has_did} didActive={item.did_active} compact />
+                  <DidStatusPill hasDid={item.has_did} compact />
                 </td>
                 <td className="user-dir__th-hide-mobile">{formatUtcDate(item.created_at)}</td>
               </tr>
@@ -321,7 +312,6 @@ export function UserDirectoryDetail({ user, loading, error, onClose }) {
   }
 
   const did = user.did_details
-  const didActive = did?.active ?? user.did_active
   const holderDid = did?.did || user.did || null
 
   return (
@@ -351,7 +341,7 @@ export function UserDirectoryDetail({ user, loading, error, onClose }) {
       <div className="user-dir__detail-section">
         <div className="user-dir__detail-section-head">
           <h3>Decentralized Identity</h3>
-          <DidStatusPill hasDid={user.has_did} didActive={didActive} />
+          <DidStatusPill hasDid={user.has_did} />
         </div>
 
         {did || holderDid ? (

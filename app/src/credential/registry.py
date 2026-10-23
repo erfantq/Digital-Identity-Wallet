@@ -57,11 +57,15 @@ class CredentialRegistryService:
         credential_hash: str,
         issuer: str,
         holder_did: str,
+        type_id: str,
     ) -> dict[str, Any]:
+        from app.src.credential_type.repository import type_id_hash
+
         credential_id_hash = credential_id_hash_from_string(credential_id)
         cred_hash = _to_bytes32(credential_hash)
         issuer_address = Web3.to_checksum_address(issuer)
         holder_hash = holder_did_hash_from_string(holder_did)
+        type_hash = type_id_hash(type_id)
 
         if self.is_registered(credential_id):
             raise CredentialRegistryError(
@@ -74,6 +78,7 @@ class CredentialRegistryService:
                 cred_hash,
                 issuer_address,
                 holder_hash,
+                type_hash,
             )
         )
 
@@ -83,21 +88,29 @@ class CredentialRegistryService:
             record = self.contract.functions.getCredentialRecord(
                 credential_id_hash
             ).call()
-            return int(record[3]) > 0
+            # issuedAt is the 5th return value (index 4) after typeIdHash was added
+            return int(record[4]) > 0
         except Exception:
             return False
 
     def get_credential_record(self, credential_id: str) -> dict[str, Any]:
         credential_id_hash = credential_id_hash_from_string(credential_id)
-        cred_hash, issuer, holder_hash, issued_at, revoked_at, reason_code = (
-            self.contract.functions.getCredentialRecord(credential_id_hash).call()
-        )
+        (
+            cred_hash,
+            issuer,
+            holder_hash,
+            type_hash,
+            issued_at,
+            revoked_at,
+            reason_code,
+        ) = self.contract.functions.getCredentialRecord(credential_id_hash).call()
         return {
             "credential_id": credential_id,
             "credential_id_hash": Web3.to_hex(credential_id_hash),
             "credential_hash": Web3.to_hex(cred_hash),
             "issuer": issuer,
             "holder_did_hash": Web3.to_hex(holder_hash),
+            "type_id_hash": Web3.to_hex(type_hash),
             "issued_at": int(issued_at),
             "revoked_at": int(revoked_at),
             "reason_code": int(reason_code),

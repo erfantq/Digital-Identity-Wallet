@@ -12,6 +12,7 @@ export const ADMIN_NAV_ITEMS = [
 
 export const SUPER_ADMIN_EXTRA_NAV = [
   { to: '/admin/admins', label: 'Admin Management', icon: 'admin_panel_settings' },
+  { to: '/admin/credential-types', label: 'Credential Types', icon: 'category' },
 ]
 
 /** @deprecated Prefer getRegisterRoleOptions(currentRole) from utils/roles */

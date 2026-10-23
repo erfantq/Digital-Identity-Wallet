@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+interface ICredentialTypeRegistryForSBT {
+    function isRevocable(bytes32 typeIdHash) external view returns (bool);
+    function typeExists(bytes32 typeIdHash) external view returns (bool);
+}
+
 /**
  * @title CertificateSBT
  * @notice Soulbound (non-transferable) certificate NFT for issued credentials.
@@ -15,9 +20,11 @@ pragma solidity ^0.8.27;
  *
  * Keying: bytes32 credentialIdHash = keccak256(bytes(credentialId))
  * revokedAt == 0 means active.
+ * Revocation is allowed only when the credential's type is marked revocable.
  */
 contract CertificateSBT {
     address public owner;
+    ICredentialTypeRegistryForSBT public immutable typeRegistry;
     string public name;
     string public symbol;
 
@@ -26,6 +33,7 @@ contract CertificateSBT {
     struct Certificate {
         bytes32 credentialIdHash;
         bytes32 credentialHash;
+        bytes32 typeIdHash;
         address issuer;
         uint64 mintedAt;
         uint64 revokedAt;
@@ -59,6 +67,8 @@ contract CertificateSBT {
     error CredentialAlreadyMinted(bytes32 credentialIdHash);
     error CredentialNotMinted(bytes32 credentialIdHash);
     error CertificateAlreadyRevoked(bytes32 credentialIdHash);
+    error CredentialTypeUnknown(bytes32 typeIdHash);
+    error CredentialTypeNotRevocable(bytes32 typeIdHash);
     error EmptyTokenURI();
 
     modifier onlyOwner() {
@@ -66,9 +76,16 @@ contract CertificateSBT {
         _;
     }
 
-    constructor(address admin, string memory name_, string memory symbol_) {
+    constructor(
+        address admin,
+        address typeRegistry_,
+        string memory name_,
+        string memory symbol_
+    ) {
         if (admin == address(0)) revert ZeroAddress();
+        if (typeRegistry_ == address(0)) revert ZeroAddress();
         owner = admin;
+        typeRegistry = ICredentialTypeRegistryForSBT(typeRegistry_);
         name = name_;
         symbol = symbol_;
     }
@@ -77,14 +94,22 @@ contract CertificateSBT {
         address to,
         bytes32 credentialIdHash,
         bytes32 credentialHash,
+        bytes32 typeIdHash,
         address issuer,
         string calldata tokenURI_
     ) external onlyOwner returns (uint256 tokenId) {
         if (to == address(0) || issuer == address(0)) revert ZeroAddress();
-        if (credentialIdHash == bytes32(0) || credentialHash == bytes32(0)) {
+        if (
+            credentialIdHash == bytes32(0) ||
+            credentialHash == bytes32(0) ||
+            typeIdHash == bytes32(0)
+        ) {
             revert ZeroHash();
         }
         if (bytes(tokenURI_).length == 0) revert EmptyTokenURI();
+        if (!typeRegistry.typeExists(typeIdHash)) {
+            revert CredentialTypeUnknown(typeIdHash);
+        }
         if (_tokenByCredential[credentialIdHash] != 0) {
             revert CredentialAlreadyMinted(credentialIdHash);
         }
@@ -96,6 +121,7 @@ contract CertificateSBT {
         _certificates[tokenId] = Certificate({
             credentialIdHash: credentialIdHash,
             credentialHash: credentialHash,
+            typeIdHash: typeIdHash,
             issuer: issuer,
             mintedAt: uint64(block.timestamp),
             revokedAt: 0,
@@ -113,6 +139,9 @@ contract CertificateSBT {
         Certificate storage cert = _certificates[tokenId];
         if (cert.revokedAt != 0) {
             revert CertificateAlreadyRevoked(credentialIdHash);
+        }
+        if (!typeRegistry.isRevocable(cert.typeIdHash)) {
+            revert CredentialTypeNotRevocable(cert.typeIdHash);
         }
 
         cert.revokedAt = uint64(block.timestamp);
@@ -150,6 +179,7 @@ contract CertificateSBT {
             uint256 tokenId,
             address tokenOwner,
             bytes32 credentialHash,
+            bytes32 typeIdHash,
             address issuer,
             uint64 mintedAt,
             uint64 revokedAt,
@@ -164,6 +194,7 @@ contract CertificateSBT {
             tokenId,
             _owners[tokenId],
             cert.credentialHash,
+            cert.typeIdHash,
             cert.issuer,
             cert.mintedAt,
             cert.revokedAt,

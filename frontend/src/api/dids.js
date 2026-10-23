@@ -30,12 +30,3 @@ export async function getDidOnChainStatus(did) {
   const params = new URLSearchParams({ did })
   return apiSuccessData(`/dids/on-chain/status?${params}`)
 }
-
-/** POST /dids/on-chain/deactivate (admin-only) */
-export async function deactivateDidOnChain(did) {
-  return apiSuccessData('/dids/on-chain/deactivate', {
-    method: 'POST',
-    auth: true,
-    body: { did },
-  })
-}

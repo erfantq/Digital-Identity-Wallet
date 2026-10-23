@@ -1,0 +1,1 @@
+# Credential type template package

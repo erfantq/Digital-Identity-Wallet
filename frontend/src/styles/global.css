@@ -10,6 +10,7 @@
 @import './user-credentials.css';
 @import './user-directory.css';
 @import './admin-management.css';
+@import './credential-types.css';
 @import './verify-credential.css';
 @import './wallet-did.css';
 @import './wallet-resolve-did.css';

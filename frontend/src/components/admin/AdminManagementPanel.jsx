@@ -224,13 +224,7 @@ export function AdminManagementDetail({
             <DetailField label="DID" value={admin.did} mono copyable />
             <DetailField
               label="DID Status"
-              value={
-                !admin.has_did
-                  ? 'Pending'
-                  : admin.did_active === false
-                    ? 'Deactivated'
-                    : 'Active'
-              }
+              value={!admin.has_did ? 'Pending' : 'Active'}
             />
             <div className="user-dir__detail-field">
               <span className="user-dir__detail-label">Authorized Issuer</span>

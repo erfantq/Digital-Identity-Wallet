@@ -16,13 +16,12 @@ export function deriveDidChainStatus(record) {
     record.exists ??
     record.registered ??
     record.isRegistered ??
-    (typeof record.active === 'boolean' ? record.active : undefined)
-  const deactivated =
-    record.deactivated ??
-    record.isDeactivated ??
-    (typeof record.active === 'boolean' ? !record.active : undefined)
+    (record.controller != null || record.did_hash != null
+      ? true
+      : typeof record.active === 'boolean'
+        ? true
+        : undefined)
 
-  if (deactivated === true) return 'revoked'
   if (exists === false) return 'pending'
   if (exists === true) return 'anchored'
 

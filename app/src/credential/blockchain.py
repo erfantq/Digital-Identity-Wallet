@@ -12,6 +12,7 @@ def register_credential_on_chain(
     credential_hash: str,
     issuer_address: str,
     holder_did: str,
+    type_id: str,
 ) -> dict:
     """
     Register a credential anchor on CredentialRegistry.
@@ -29,6 +30,7 @@ def register_credential_on_chain(
         credential_hash=credential_hash,
         issuer=issuer_address,
         holder_did=holder_did,
+        type_id=type_id,
     )
     logger.info(
         "Credential registered on-chain id=%s tx=%s block=%s",
@@ -72,6 +74,7 @@ def mint_certificate_sbt_on_chain(
     credential_id: str,
     credential_hash: str,
     issuer_address: str,
+    type_id: str,
     token_uri: str = "",
 ) -> dict:
     """
@@ -89,6 +92,7 @@ def mint_certificate_sbt_on_chain(
         holder_address=holder_address,
         credential_id=credential_id,
         credential_hash=credential_hash,
+        type_id=type_id,
         issuer=issuer_address,
         token_uri=token_uri,
     )

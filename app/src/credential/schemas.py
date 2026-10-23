@@ -3,15 +3,11 @@ import json
 from fastapi import Form, HTTPException
 from typing import Any
 
-from .enums import CredentialType
-
 
 class CredentialIssue(BaseModel):
-    # issuer_did: str
     holder_did: str
-    type: CredentialType = CredentialType.UNIVERSITY_PID
+    type: str = "UniversityPIDCredential"
     credential_data: dict
-    # signature: str
 
 
 class CredentialVerifyRequest(BaseModel):
@@ -27,7 +23,6 @@ def credential_form_parser(
     try:
         parsed_dict = json.loads(cred_json)
         return CredentialIssue(**parsed_dict)
-
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=400, detail="Invalid JSON format for credential data"

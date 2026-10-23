@@ -8,11 +8,12 @@ pragma solidity ^0.8.27;
  *
  * Backend needs today:
  * - registerDid: after local DID creation (did.created)
- * - deactivateDid: if a DID must be invalidated
  * - getDidRecord / isActive: resolve / consistency checks
  *
  * Keying: bytes32 didHash = keccak256(bytes(didString))
  * Computed off-chain by the backend (Web3.keccak).
+ *
+ * isActive means the DID is registered (registeredAt != 0). Deactivation is not supported.
  */
 contract DIDRegistry {
     address public owner;
@@ -20,7 +21,6 @@ contract DIDRegistry {
     struct DidRecord {
         address controller;
         bytes32 documentHash;
-        bool active;
         uint64 registeredAt;
     }
 
@@ -33,12 +33,6 @@ contract DIDRegistry {
         address indexed registeredBy
     );
 
-    event DidDeactivated(
-        bytes32 indexed didHash,
-        address indexed controller,
-        address indexed deactivatedBy
-    );
-
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     error ZeroAddress();
@@ -46,7 +40,6 @@ contract DIDRegistry {
     error NotOwner();
     error DidAlreadyRegistered(bytes32 didHash);
     error DidNotFound(bytes32 didHash);
-    error DidNotActive(bytes32 didHash);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -78,23 +71,10 @@ contract DIDRegistry {
         _records[didHash] = DidRecord({
             controller: controller,
             documentHash: documentHash,
-            active: true,
             registeredAt: uint64(block.timestamp)
         });
 
         emit DidRegistered(didHash, controller, documentHash, msg.sender);
-    }
-
-    /**
-     * @notice Deactivate an anchored DID. Record remains for audit.
-     */
-    function deactivateDid(bytes32 didHash) external onlyOwner {
-        DidRecord storage record = _records[didHash];
-        if (record.registeredAt == 0) revert DidNotFound(didHash);
-        if (!record.active) revert DidNotActive(didHash);
-
-        record.active = false;
-        emit DidDeactivated(didHash, record.controller, msg.sender);
     }
 
     function getDidRecord(
@@ -105,7 +85,6 @@ contract DIDRegistry {
         returns (
             address controller,
             bytes32 documentHash,
-            bool active,
             uint64 registeredAt
         )
     {
@@ -114,14 +93,13 @@ contract DIDRegistry {
         return (
             record.controller,
             record.documentHash,
-            record.active,
             record.registeredAt
         );
     }
 
+    /// @notice Returns true if the DID is registered on-chain.
     function isActive(bytes32 didHash) external view returns (bool) {
-        DidRecord storage record = _records[didHash];
-        return record.registeredAt != 0 && record.active;
+        return _records[didHash].registeredAt != 0;
     }
 
     function transferOwnership(address newOwner) external onlyOwner {

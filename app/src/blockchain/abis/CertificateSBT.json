@@ -7,6 +7,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "typeRegistry_",
+        "type": "address"
+      },
+      {
         "internalType": "string",
         "name": "name_",
         "type": "string"
@@ -51,6 +56,28 @@
       }
     ],
     "name": "CredentialNotMinted",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "typeIdHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CredentialTypeNotRevocable",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "typeIdHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CredentialTypeUnknown",
     "type": "error"
   },
   {
@@ -258,6 +285,11 @@
         "type": "bytes32"
       },
       {
+        "internalType": "bytes32",
+        "name": "typeIdHash",
+        "type": "bytes32"
+      },
+      {
         "internalType": "address",
         "name": "issuer",
         "type": "address"
@@ -339,6 +371,11 @@
       {
         "internalType": "bytes32",
         "name": "credentialHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "typeIdHash",
         "type": "bytes32"
       },
       {
@@ -581,6 +618,19 @@
     "name": "transferFrom",
     "outputs": [],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "typeRegistry",
+    "outputs": [
+      {
+        "internalType": "contract ICredentialTypeRegistryForSBT",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

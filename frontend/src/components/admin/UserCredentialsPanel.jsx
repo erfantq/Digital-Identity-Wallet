@@ -125,6 +125,10 @@ function CredentialIpfsLinks({ item }) {
   )
 }
 
+function canRevokeCredential(item) {
+  return item?.revocable === true
+}
+
 function CredentialActions({
   item,
   onRevoke,
@@ -138,10 +142,12 @@ function CredentialActions({
   const revoking = revokingId === item.credential_id
   const checking = chainLoadingId === item.credential_id
   const sbtImageUrl = getSbtImageUrl(item)
+  const revocable = canRevokeCredential(item)
+  const showRevoke = allowRevoke && active && revocable
 
   return (
     <div className="user-creds__actions">
-      {allowRevoke && active && (
+      {showRevoke && (
         <button
           type="button"
           className="user-creds__action user-creds__action--revoke"
@@ -151,6 +157,9 @@ function CredentialActions({
           <MaterialIcon name="cancel" size={16} />
           {revoking ? 'Revoking…' : 'Revoke'}
         </button>
+      )}
+      {allowRevoke && active && item.revocable === false && (
+        <span className="user-creds__not-revocable">Type is not revocable</span>
       )}
       {sbtImageUrl && (
         <a
@@ -426,7 +435,7 @@ export function CredentialsCards({
                   {checking ? 'Checking…' : 'Chain status'}
                 </button>
               )}
-              {allowRevoke && active && (
+              {allowRevoke && active && item.revocable === true && (
                 <button
                   type="button"
                   className="user-creds__btn-revoke"
@@ -436,6 +445,9 @@ export function CredentialsCards({
                   <MaterialIcon name="block" size={18} />
                   {revokingId === item.credential_id ? 'Revoking…' : 'Revoke'}
                 </button>
+              )}
+              {allowRevoke && active && item.revocable === false && (
+                <span className="user-creds__not-revocable">Type is not revocable</span>
               )}
             </div>
           </article>

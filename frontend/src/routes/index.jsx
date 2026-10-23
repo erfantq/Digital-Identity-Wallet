@@ -10,6 +10,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { SessionExpiredPage } from '@/pages/SessionExpiredPage'
 import { AdminAdminsPage } from '@/pages/admin/AdminAdminsPage'
 import { AdminCredentialsPage } from '@/pages/admin/AdminCredentialsPage'
+import { AdminCredentialTypesPage } from '@/pages/admin/AdminCredentialTypesPage'
 import { AdminDidsPage } from '@/pages/admin/AdminDidsPage'
 import { AdminHomePage } from '@/pages/admin/AdminHomePage'
 import { AdminIssuePage } from '@/pages/admin/AdminIssuePage'
@@ -53,6 +54,7 @@ export function AppRoutes() {
             <Route path="credentials" element={<AdminCredentialsPage />} />
             <Route path="verify" element={<VerifierPage embedded />} />
             <Route path="admins" element={<AdminAdminsPage />} />
+            <Route path="credential-types" element={<AdminCredentialTypesPage />} />
             {/* <Route path="trust" element={<AdminTrustPage />} /> */}
           </Route>
         </Route>

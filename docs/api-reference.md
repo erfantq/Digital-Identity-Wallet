@@ -253,19 +253,58 @@ Returns the on-chain `DIDRegistry` record for the DID.
 
 ---
 
-### `POST /dids/on-chain/deactivate`
+## Credential types — `/credential-types`
+
+Immutable templates that define issuance form fields and whether credentials of that type may be revoked.
+
+### `GET /credential-types`
 
 **Auth:** admin / super_admin
 
-Deactivate a DID on-chain and mark it inactive in the database.
+List all credential type templates.
+
+### `GET /credential-types/{type_id}`
+
+**Auth:** authenticated
+
+Fetch one template (fields, `revocable`, on-chain hash/tx if anchored).
+
+### `POST /credential-types`
+
+**Auth:** super_admin only
+
+Create a new immutable template and register it on `CredentialTypeRegistry`.
 
 **Body:**
 
 ```json
 {
-  "did": "did:ethr:6:0x…"
+  "type_id": "LibraryMembershipCredential",
+  "display_name": "Library Membership",
+  "description": "Active library membership",
+  "revocable": true,
+  "fields": [
+    {
+      "key": "firstName",
+      "label": "First name",
+      "data_type": "string",
+      "required": true,
+      "options": null,
+      "visible_when": null,
+      "order": 1,
+      "source": null
+    }
+  ]
 }
 ```
+
+There is no update or delete endpoint; template properties cannot change after creation.
+
+### `POST /credential-types/{type_id}/anchor`
+
+**Auth:** super_admin only
+
+Register an existing DB template on-chain (bootstrap helper for seeded types).
 
 ---
 
@@ -475,7 +514,10 @@ Prometheus metrics are exposed by the FastAPI app (via `prometheus-fastapi-instr
 | GET | `/dids/{did}` | Public |
 | GET | `/dids/holder-profile` | Admin |
 | GET | `/dids/on-chain/status` | Public |
-| POST | `/dids/on-chain/deactivate` | Admin |
+| GET | `/credential-types` | Admin |
+| GET | `/credential-types/{type_id}` | Authenticated |
+| POST | `/credential-types` | Super admin |
+| POST | `/credential-types/{type_id}/anchor` | Super admin |
 | POST | `/credentials/verify` | Public |
 | POST | `/credentials/issue` | Admin |
 | GET | `/credentials/users/auth/credentials` | Authenticated |

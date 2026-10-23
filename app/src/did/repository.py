@@ -40,17 +40,6 @@ def update_did_chain_anchor(
     return record
 
 
-def update_did_active_status(db: Session, did: str, active: bool) -> Did | None:
-    record = get_did_by_string(db, did)
-    if not record:
-        return None
-
-    record.active = active
-    db.commit()
-    db.refresh(record)
-    return record
-
-
 def delete_did_by_user_id(db: Session, user_id: int) -> int:
     deleted = db.query(Did).filter(Did.user_id == user_id).delete(synchronize_session=False)
     db.commit()

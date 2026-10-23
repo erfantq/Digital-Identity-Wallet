@@ -8,7 +8,6 @@ import {
   truncateMiddle,
 } from '@/utils/credentialFormat'
 import {
-  CREDENTIAL_TYPE_OPTIONS,
   formatCredentialTypeLabel,
   normalizeCredentialType,
 } from '@/utils/issueCredential'
@@ -100,22 +99,6 @@ function DidStatusBanner({ didState }) {
         </div>
         <Link to="/wallet/did" className="wallet-overview__did-link">
           Check status
-          <MaterialIcon name="arrow_forward" size={16} />
-        </Link>
-      </div>
-    )
-  }
-
-  if (didState.status === 'deactivated') {
-    return (
-      <div className="wallet-overview__did-banner wallet-overview__did-banner--error">
-        <MaterialIcon name="cancel" size={22} filled />
-        <div>
-          <strong>DID deactivated</strong>
-          <p>{didState.message || 'Your DID is deactivated on-chain.'}</p>
-        </div>
-        <Link to="/wallet/did" className="wallet-overview__did-link">
-          View DID
           <MaterialIcon name="arrow_forward" size={16} />
         </Link>
       </div>
@@ -395,10 +378,9 @@ export function buildWalletOverviewSummary(items = []) {
     typeMap.set(type, (typeMap.get(type) || 0) + 1)
   }
 
-  const credentialsByType = CREDENTIAL_TYPE_OPTIONS.map((option) => ({
-    type: option.value,
-    count: typeMap.get(option.value) || 0,
-  }))
+  const credentialsByType = [...typeMap.entries()]
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
 
   return {
     summary: {
@@ -427,22 +409,12 @@ export function deriveDidState(resolution, onChainStatus) {
 
   const did = resolution?.didDocument?.id || null
   const error = resolution?.didResolutionMetadata?.error
-  const deactivated = resolution?.didDocumentMetadata?.deactivated === true
   const onChainRegistered =
     onChainStatus == null
       ? null
       : typeof onChainStatus.active === 'boolean'
         ? true
         : Boolean(onChainStatus.did || onChainStatus.controller)
-
-  if (deactivated || onChainStatus?.active === false || error === 'DID is deactivated on-chain') {
-    return {
-      status: 'deactivated',
-      did,
-      message: error || 'This DID is deactivated on-chain.',
-      onChainRegistered,
-    }
-  }
 
   if (error) {
     return {

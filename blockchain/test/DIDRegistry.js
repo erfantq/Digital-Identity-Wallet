@@ -46,7 +46,6 @@ describe("DIDRegistry", function () {
     const record = await registry.getDidRecord(didHash);
     expect(record.controller).to.equal(controller.address);
     expect(record.documentHash).to.equal(documentHash);
-    expect(record.active).to.equal(true);
     expect(record.registeredAt).to.be.greaterThan(0n);
     expect(await registry.isActive(didHash)).to.equal(true);
   });
@@ -81,31 +80,13 @@ describe("DIDRegistry", function () {
     ).to.be.revertedWithCustomError(registry, "ZeroHash");
   });
 
-  it("deactivates a registered DID", async function () {
-    await registry
-      .connect(owner)
-      .registerDid(didHash, controller.address, documentHash);
-
-    await expect(registry.connect(owner).deactivateDid(didHash))
-      .to.emit(registry, "DidDeactivated")
-      .withArgs(didHash, controller.address, owner.address);
-
-    const record = await registry.getDidRecord(didHash);
-    expect(record.active).to.equal(false);
+  it("isActive is false for unknown DID", async function () {
     expect(await registry.isActive(didHash)).to.equal(false);
   });
 
   it("rejects unauthorized callers", async function () {
     await expect(
       registry.connect(other).registerDid(didHash, controller.address, documentHash)
-    ).to.be.revertedWithCustomError(registry, "NotOwner");
-
-    await registry
-      .connect(owner)
-      .registerDid(didHash, controller.address, documentHash);
-
-    await expect(
-      registry.connect(other).deactivateDid(didHash)
     ).to.be.revertedWithCustomError(registry, "NotOwner");
   });
 });
